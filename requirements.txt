@@ -1,0 +1,28 @@
+# Core dependencies
+gymnasium>=0.29.0
+torch>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Configuration
+pyyaml>=6.0
+
+# Model utilities
+torchinfo>=1.8.0
+
+# Preprocessors (from skrl)
+skrl>=1.0.0
+
+# Visualization
+matplotlib>=3.7.0
+tensorboard>=2.13.0
+
+# Optional: Video recording support
+# Requires system codecs (ffmpeg or similar)
+# These are automatically included with gymnasium[other]
+moviepy>=1.0.3
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.8

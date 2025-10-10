@@ -1,0 +1,47 @@
+seed: 42
+device: cpu
+# BEST_SO_FAR: -inf
+
+
+models:
+  policy:
+    lr: 0.0003
+    activation_fct: elu
+    hidden_layers: [512, 512, 256, 128]
+    stochastic: false  # TD3 uses DETERMINISTIC policy
+  critic1:
+    lr: 0.0003
+    activation_fct: elu
+    hidden_layers: [512, 512, 256, 128]
+  critic2:
+    lr: 0.0003
+    activation_fct: elu
+    hidden_layers: [512, 512, 256, 128]
+
+agent:
+  asymmetricAC: false
+  preprocess_inputs: true
+  gradient_steps: 1  # Update once per env step
+  discount_factor: 0.99
+  policy_delay: 2  # TD3 standard: update policy every 2 critic updates
+  gradient_clip: 0.5
+  polyak: 0.005  # Slow target update: 0.5% per step (was backwards!)
+  action_noise_type: "normal"
+  action_noise_params: {"loc": 0.0, "scale": 0.1}
+  target_noise_type: "normal"
+  target_noise_params: {"loc": 0.0, "scale": 0.2}
+  noise_range: 0.5
+  state_history: 1
+  action_history: 1
+  privileged_state_history: 1
+
+memory:
+  batch_size: 256  # Much larger for stable gradients
+  buffer_size: 1000000
+  td_horizon: 3
+
+training:
+  max_iterations: 10000
+  random_steps: 1000  # Explore randomly first
+  warm_up: 1000  # Fill buffer before training
+
