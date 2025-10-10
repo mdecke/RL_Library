@@ -210,3 +210,6 @@ __marimo__/
 play*.py
 saved*
 logs*
+
+.DS_Store
+.vscode/
