@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from agents.TD_agent import TdAgent
+import agents
 from base_classes.utils import load_config, get_noise_model
 
 
@@ -30,6 +30,8 @@ def main():
     config_file = os.path.join("configs", f"{args.algorithm}Config.yaml")
     general_cfg = load_config(config_file)
     general_cfg['device'] = args.device
+    general_cfg['algorithm'] = args.algorithm
+
     warm_up = general_cfg['training']['warm_up']
     random_steps = general_cfg['training']['random_steps']
 
@@ -51,7 +53,7 @@ def main():
 
     env = gym.make_vec(args.task, num_envs=args.num_envs)
 
-    agent = TdAgent(env, general_cfg)
+    agent = agents.create_agent(env, general_cfg)
 
     noise = get_noise_model(general_cfg)
 
