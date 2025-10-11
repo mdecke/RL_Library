@@ -134,9 +134,7 @@ def main():
             best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
             if best_ending >= BEST_SO_FAR:
                 BEST_SO_FAR = best_ending
-                agent.policy.save(os.path.join(save_dir, "best_policy.pth"))
-                agent.critic_1.save(os.path.join(save_dir, "best_critic_1.pth"))
-                agent.critic_2.save(os.path.join(save_dir, "best_critic_2.pth"))
+                agent.save_checkpoint(save_dir)
                 torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
                 writer.add_scalar('Episode/Best_Return', BEST_SO_FAR, total_episodes)
 
