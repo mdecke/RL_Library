@@ -66,13 +66,6 @@ def print_model_summary(model:nn.Module, input_size:Tuple[int])->None:
     summary(model, input_size=input_size)
     
 
-# def load_model(model:Actor|Critic, filepath:str):
-#     model_type = model.__class__.__name__
-#     print(f"[INFO]: Loading {model_type} model from {filepath}")
-#     model = model.load(filepath)
-#     return model
-
-
 def load_scaler(size:int, scaler_filepath: str):
     scaler = RunningStandardScaler(size=size)
     scaler.load_state_dict(torch.load(scaler_filepath))
