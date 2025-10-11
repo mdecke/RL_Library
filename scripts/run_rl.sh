@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+TASK="Pendulum-v1"
+
 python scripts/train.py \
-    --task Pendulum-v1 \
+    --task $TASK \
     --num_envs 10 \
     --max_iterations 7500 \
     --path_to_saved_policy ./saved \
-    --algorithm TDn
+    --algorithm ddpg \
 
 python scripts/validate.py \
-    --task Pendulum-v1 \
+    --task $TASK \
     --num_envs 10 \
     --max_iterations 1000 \
     --path_to_saved_policy ./saved \
-    --algorithm TDn \
+    --algorithm ddpg \
     --video \
     --video_steps 300
 
