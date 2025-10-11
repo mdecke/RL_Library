@@ -53,7 +53,7 @@ class TdAgent:
         self.mean_q_value = []  # Track mean Q-values for TensorBoard
 
 
-    def _init_memory(self):
+    def _init_memory(self) -> None:
         num_envs = self.env.num_envs
         N = self.cfg["memory"]["buffer_size"]
 
@@ -130,7 +130,7 @@ class TdAgent:
         print_model_summary(self.critic_2, input_size=(self.obs_dim + self.act_dim,))
 
 
-    def update(self):
+    def update(self) -> None:
         for step in range(self.gradient_steps):
             # Sample a batch from memory
             batch = self.memory.sample(batch_size=self.cfg["memory"]["batch_size"], n_step_horizon=self.temporal_diff_horizon)
@@ -193,5 +193,10 @@ class TdAgent:
             soft_update(self.target_policy, self.policy, tau=self.polyak)
             soft_update(self.target_critic_1, self.critic_1, tau=self.polyak)
             soft_update(self.target_critic_2, self.critic_2, tau=self.polyak)
+
+    def save_checkpoint(self, save_dir:str) -> None:
+        self.policy.save(f"{save_dir}/best_policy.pth")
+        self.critic_1.save(f"{save_dir}/best_critic_1.pth")
+        self.critic_2.save(f"{save_dir}/best_critic_2.pth")
 
     

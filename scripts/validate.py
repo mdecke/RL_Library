@@ -59,7 +59,7 @@ def main():
     episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
 
     obs, _ = env.reset()
-    # trajs['obss'].append(obs)
+    
     for t in range(args.max_iterations):
         with torch.no_grad():
             obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device)
