@@ -17,6 +17,15 @@ class OffPolicyMemory:
         self.envs = n_envs
         self.obs_dim = observation_dim
         self.act_dim = action_dim
+
+        self.generator = torch.Generator(device=device)
+        if hasattr(cfg, "seed"):
+            self.seed = cfg["seed"]
+        else:
+            self.seed = 42  # Default seed
+        self.generator.manual_seed(self.seed)
+
+
         if isinstance(self.obs_dim, int):
             obs_shape = (self.obs_dim,)
         else:
@@ -25,6 +34,7 @@ class OffPolicyMemory:
             act_shape = (self.act_dim,)
         else:
             act_shape = tuple(self.act_dim)
+        
         self.device = device
         self.asym_flag = asymmetric_flag
 
@@ -77,8 +87,8 @@ class OffPolicyMemory:
     def sample(self, batch_size:int, n_step_horizon:int=3):
         # Safety check: ensure we have enough samples for n-step returns
         max_start = max(1, self.filled_lines - n_step_horizon)
-        start_time = torch.randint(0, max_start, (batch_size,), device=self.device)
-        sampled_envs  = torch.randint(0, self.envs,  (batch_size,), device=self.device)
+        start_time = torch.randint(0, max_start, (batch_size,), device=self.device, generator=self.generator)
+        sampled_envs  = torch.randint(0, self.envs,  (batch_size,), device=self.device, generator=self.generator)
 
         offset= torch.arange(n_step_horizon, device=self.device) #-> [0,1,2,...,n_step_horizon]       
         time_window = (start_time[:, None] + offset[None, :]) % self.N  #-> tensor[[start_time[0], start_time[0]+1, start_time[0]+2,...],start_time[1]] wrapped around N
