@@ -1,5 +1,5 @@
 from typing import Dict, Tuple
-
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.distributions as dist
@@ -70,3 +70,15 @@ def load_scaler(size:int, scaler_filepath: str):
     scaler = RunningStandardScaler(size=size)
     scaler.load_state_dict(torch.load(scaler_filepath))
     return scaler
+
+def load_file(filepath: str) -> pd.DataFrame:
+    if filepath.endswith('.csv'):
+        return pd.read_csv(filepath)
+    elif filepath.endswith('.xlsx') or filepath.endswith('.xls'):
+        return pd.read_excel(filepath)
+    elif filepath.endswith('.pkl') or filepath.endswith('.pickle'):
+        return pd.read_pickle(filepath)
+    elif filepath.endswith('.json'):
+        return pd.read_json(filepath)
+    else:
+        raise ValueError(f"Unsupported file format for {filepath}. Supported formats are: .csv, .xlsx, .xls, .pkl, .pickle, .json")
