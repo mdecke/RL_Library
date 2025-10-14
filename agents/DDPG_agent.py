@@ -9,7 +9,7 @@ from skrl.resources.preprocessors.torch import RunningStandardScaler
 
 from base_classes.models import Actor, Critic
 from base_classes.memory_buffers import OffPolicyMemory
-from base_classes.utils import init_model_weights, soft_update, get_noise_model, print_model_summary
+from base_classes.utils import init_model_weights, soft_update, print_model_summary
 
 
 class DdpgAgent:
