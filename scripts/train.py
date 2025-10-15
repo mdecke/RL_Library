@@ -9,6 +9,7 @@ import pandas as pd
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import yaml
 
 import agents
 from base_classes.utils import load_config, get_noise_model
@@ -40,7 +41,7 @@ def main():
     warm_up = general_cfg['training']['warm_up']
     random_steps = general_cfg['training']['random_steps']
 
-    log_dir = os.path.join("logs", args.task, args.algorithm)
+    log_dir = os.path.join("logs", args.task, args.algorithm, "training_stats")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
@@ -142,6 +143,10 @@ def main():
                 agent.save_checkpoint(save_dir)
                 torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
                 writer.add_scalar('Episode/Best_Return', BEST_SO_FAR, total_episodes)
+                # general_cfg['BEST_SO_FAR'] = BEST_SO_FAR
+                # with open(config_file, 'w') as f:
+                #     yaml.dump(general_cfg, f) # Save updated best return to config file this allows to keep best return across multiple training sessions
+
 
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
@@ -165,7 +170,7 @@ def main():
         })
 
     df = pd.DataFrame(data_list)
-    df.to_csv(os.path.join(log_dir, "training_stats.csv"), index=False)
+    df.to_csv(os.path.join(log_dir, f"seed_{args.seed}.csv"), index=False)
 
 if __name__ == "__main__":
     main()
