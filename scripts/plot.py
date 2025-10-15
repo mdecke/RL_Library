@@ -80,45 +80,50 @@ def plot_series(ax, stats_df: pd.DataFrame, ylabel: str, title: str, label: str)
 
 def main():
     args = parse_args()
-    
-    # Build path to training stats CSV
-    csv_path = os.path.join(args.log_dir, args.task, args.algorithm, "training_stats.csv")
-    
-    if not os.path.exists(csv_path):
-        raise ValueError(f"Training stats file not found: {csv_path}\nPlease train before trying to plot.")
 
-    df = load_file(csv_path)
+    training_stats_folder = os.path.join(args.log_dir, args.task, args.algorithm, "training_stats")
+    csv_paths = []
+    for file_name in os.listdir(training_stats_folder):
+        if file_name.endswith(".csv"):
+            file = os.path.join(training_stats_folder, file_name)
+            csv_paths.append(file)
+    
+    if len(csv_paths) == 0:
+        raise FileNotFoundError(f"No CSV files found in {training_stats_folder}")
+
+    training_data = pd.DataFrame()
+    for csv_path in csv_paths:
+        df = load_file(csv_path)
+        df["seed"] = int(os.path.basename(csv_path).split("_")[-1].split(".")[0])
+        training_data = pd.concat([training_data, df], ignore_index=True)
+
     
     title = f"{args.algorithm} · {args.task}"
     smoothing = max(int(args.smoothing_window), 0)
 
     # Compute stats for each metric (assuming single cycle/run for now)
     # Add a dummy cycle column if it doesn't exist
-    if "cycle" not in df.columns:
-        df["cycle"] = 0
+    if "seed" not in training_data.columns:
+        training_data["seed"] = 0
     
-    returns_stats = compute_cycle_stats(df, "cycle", "return")
-    policy_stats = compute_cycle_stats(df, "cycle", "policy_loss")
-    q_stats = compute_cycle_stats(df, "cycle", "q_loss")
+    returns_stats = compute_cycle_stats(training_data, "seed", "return")
+    policy_stats = compute_cycle_stats(training_data, "seed", "policy_loss")
+    q_stats = compute_cycle_stats(training_data, "seed", "q_loss")
 
-    # Smooth (aggregate curves only)
     if smoothing > 1:
         returns_stats = apply_smoothing(returns_stats, smoothing)
         policy_stats = apply_smoothing(policy_stats, smoothing)
         q_stats = apply_smoothing(q_stats, smoothing)
 
-    # Prepare save path
     save_root = os.path.join(args.save_dir, args.task, args.algorithm)
     os.makedirs(save_root, exist_ok=True)
 
-    # Plot all metrics
     fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=False)
     
-    # Returns
     plot_returns(axes[0], returns_stats, smoothing)
     axes[0].set_title(f"{title} - Mean Episodic Return")
     
-    # Policy loss
+
     plot_series(
         axes[1],
         policy_stats,
