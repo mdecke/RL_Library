@@ -76,7 +76,8 @@ class DdpgAgent:
                             hidden_dims=policy_hidden_layers,
                             lr=policy_lr,
                             activation_fct=policy_activation_fct,
-                            stochastic=stochastic)
+                            stochastic=stochastic,
+                            seed=self.seed)
 
         critic_lr = self.cfg["models"]["critic1"]["lr"]
         critic_activation_fct = self.cfg["models"]["critic1"]["activation_fct"]
@@ -95,7 +96,8 @@ class DdpgAgent:
                                    hidden_dims=policy_hidden_layers,
                                    lr=policy_lr,
                                    activation_fct=policy_activation_fct,
-                                   stochastic=stochastic)
+                                   stochastic=stochastic,
+                                   seed=self.seed)
 
         self.target_critic = Critic(input_dim=self.obs_dim+self.act_dim,
                                       hidden_dims=critic_hidden_layers,
