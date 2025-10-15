@@ -38,7 +38,7 @@ def main():
     general_cfg['device'] = args.device
     general_cfg['seed'] = args.seed
 
-    log_dir = os.path.join("logs", args.task, args.algorithm)
+    log_dir = os.path.join("logs", args.task, args.algorithm, "validation_stats")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
@@ -93,17 +93,18 @@ def main():
     env.close()
 
     df = pd.DataFrame(trajs)
-    df.to_csv(os.path.join(log_dir, "validation_stats.csv"), index=False)
+    df.to_csv(os.path.join(log_dir, f"seed_{args.seed}.csv"), index=False)
 
     if args.video:
         print("\n[INFO]: Recording validation video...")
+        video_folder = os.path.join(log_dir, "trained_policy_rendering")
     
         env_render = gym.make(args.task, render_mode="rgb_array")
         env_render = RecordVideo(
             env_render, 
-            video_folder=log_dir,
+            video_folder=video_folder,
             episode_trigger=lambda ep: ep == 0,
-            name_prefix="trained_policy_rendering"
+            name_prefix=f"seed_{args.seed}"
         )
         
         obs, _ = env_render.reset(seed=args.seed)
