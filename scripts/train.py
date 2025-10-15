@@ -58,7 +58,7 @@ def main():
 
     env = gym.make_vec(args.task, num_envs=args.num_envs)
 
-    agent = agents.create_agent(env, general_cfg)
+    agent = agents.create_agent(env, args.algorithm, general_cfg)
 
     noise = get_noise_model(general_cfg)
 
