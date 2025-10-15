@@ -9,6 +9,7 @@ import pandas as pd
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import yaml
 
 import agents
 from base_classes.utils import load_config, get_noise_model
@@ -19,23 +20,28 @@ parser.add_argument('--task', type=str, default='Pendulum-v1', help='Gym environ
 parser.add_argument('--num_envs', type=int, default=1, help='Number of parallel environments')
 parser.add_argument('--max_iterations', type=int, default=1000, help='Maximum number of iterations')
 parser.add_argument('--path_to_saved_policy', type=str, help='Path to the saved policy')
-parser.add_argument('--algorithm', type=str, default='TD3', help='RL algorithm to use')
+parser.add_argument('--algorithm', type=str, default='tdn', help='RL algorithm to use')
 parser.add_argument('--device', type=str, default='cpu', help='Device to use for training (cpu or cuda)')
+parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
 
 args = parser.parse_args()
 
 
 def main():
     
+    # Set random seeds for reproducibility (exploration noise sampling --> line 90)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    
     config_file = os.path.join("configs", f"{args.algorithm}Config.yaml")
     general_cfg = load_config(config_file)
     general_cfg['device'] = args.device
-    general_cfg['algorithm'] = args.algorithm
+    general_cfg['seed'] = args.seed
 
     warm_up = general_cfg['training']['warm_up']
     random_steps = general_cfg['training']['random_steps']
 
-    log_dir = os.path.join("logs", args.task, args.algorithm)
+    log_dir = os.path.join("logs", args.task, args.algorithm, "training_stats")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
@@ -53,12 +59,12 @@ def main():
 
     env = gym.make_vec(args.task, num_envs=args.num_envs)
 
-    agent = agents.create_agent(env, general_cfg)
+    agent = agents.create_agent(env, args.algorithm, general_cfg)
 
     noise = get_noise_model(general_cfg)
 
     cumulative_reward = torch.zeros((args.num_envs,1), dtype=torch.float32, device=agent.device)
-    episode_lengths = torch.zeros((args.num_envs,), dtype=torch.int32)
+    episode_lengths = torch.zeros((args.num_envs,), dtype=torch.int32, device=agent.device)
     avg_return = []
     progress_bar = tqdm(range(args.max_iterations), unit="step")
     BEST_SO_FAR = general_cfg.get('BEST_SO_FAR', -float('inf'))
@@ -67,9 +73,9 @@ def main():
     total_episodes = 0
 
     if args.task == "Pendulum-v1":
-        obs, _ = env.reset(options={'x_init': np.pi, 'y_init': 8.0})
+        obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
     else:
-        obs, _ = env.reset()  
+        obs, _ = env.reset(seed=args.seed)  
     for t in progress_bar:
         obs_tensor = torch.as_tensor(obs, dtype=torch.float32, device=agent.device)
         if obs_tensor.dim() == 1:
@@ -137,13 +143,17 @@ def main():
                 agent.save_checkpoint(save_dir)
                 torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
                 writer.add_scalar('Episode/Best_Return', BEST_SO_FAR, total_episodes)
+                # general_cfg['BEST_SO_FAR'] = BEST_SO_FAR
+                # with open(config_file, 'w') as f:
+                #     yaml.dump(general_cfg, f) # Save updated best return to config file this allows to keep best return across multiple training sessions
+
 
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
             if args.task == "Pendulum-v1":
-                obs, _ = env.reset(options={'x_init': np.pi, 'y_init': 8.0})
+                obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
             else:
-                obs, _ = env.reset()
+                obs, _ = env.reset(seed=args.seed)
         else:
             obs = obs_.copy()
     
@@ -160,7 +170,7 @@ def main():
         })
 
     df = pd.DataFrame(data_list)
-    df.to_csv(os.path.join(log_dir, "training_stats.csv"), index=False)
+    df.to_csv(os.path.join(log_dir, f"seed_{args.seed}.csv"), index=False)
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,7 @@ from base_classes.utils import get_activation
 
 
 class Actor(nn.Module):
-    def __init__(self, input_dim:int, output_dim:int, action_limit:float, hidden_dims:List[int], lr:float, activation_fct:str, stochastic:bool):
+    def __init__(self, input_dim:int, output_dim:int, action_limit:float, hidden_dims:List[int], lr:float, activation_fct:str, stochastic:bool, seed:int=42):
         super().__init__()
 
         self.input_dim = input_dim
@@ -20,6 +20,9 @@ class Actor(nn.Module):
         prev_dim = self.input_dim
 
         self.stochastic = stochastic
+
+        self.generator = torch.Generator()
+        self.generator.manual_seed(seed)
 
         for hidden_dim in hidden_dims:
             layers.append(nn.Linear(prev_dim, hidden_dim))
@@ -43,14 +46,15 @@ class Actor(nn.Module):
             log_std = self.log_sigma_head(logits)
             if self.training:
                 sigma = torch.exp(log_std) + 1e-5 #ensure not sigma not zero for numerical stibility
-                actions = torch.normal(mu,sigma)
+                actions = torch.normal(mu,sigma, generator=self.generator)
             else:
                 actions =  mu
         else:
             actions = self.out(logits)
         
-        squashed_actions = torch.tanh(actions) * self.action_limit
-        return squashed_actions
+        bounded_actions = torch.tanh(actions) * self.action_limit
+        # bounded_actions = torch.clamp(actions, -self.action_limit, self.action_limit)
+        return bounded_actions
 
     def save(self, filepath:str)->None:
         torch.save(self.state_dict(), filepath)

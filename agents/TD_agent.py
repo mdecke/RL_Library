@@ -78,7 +78,8 @@ class TdAgent:
                             hidden_dims=policy_hidden_layers,
                             lr=policy_lr,
                             activation_fct=policy_activation_fct,
-                            stochastic=stochastic)
+                            stochastic=stochastic,
+                            seed=self.seed)
 
         critic1_lr = self.cfg["models"]["critic1"]["lr"]
         critic1_activation_fct = self.cfg["models"]["critic1"]["activation_fct"]
@@ -105,7 +106,8 @@ class TdAgent:
                                    hidden_dims=policy_hidden_layers,
                                    lr=policy_lr,
                                    activation_fct=policy_activation_fct,
-                                   stochastic=stochastic)
+                                   stochastic=stochastic,
+                                   seed=self.seed)
 
         self.target_critic_1 = Critic(input_dim=self.obs_dim+self.act_dim,
                                       hidden_dims=critic1_hidden_layers,
@@ -140,6 +142,11 @@ class TdAgent:
                 batch["next_obs"] = self.obs_preprocessor(batch["next_obs"])
             
             with torch.no_grad():
+                if self.seed is not None:
+                    torch.manual_seed(self.seed)
+                else:
+                    torch.manual_seed(42)
+                
                 epsilon_2 = torch.clamp(self.target_policy_noise.sample(batch["acts"][:,0,:].shape).to(self.device), -self.target_noise_range, self.target_noise_range)
                 last_action = self.target_policy.forward(input=batch["next_obs"][:,-1,:])
                 last_action_clipped = (last_action + epsilon_2).clamp(self.action_low, self.action_high)
