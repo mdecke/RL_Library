@@ -19,20 +19,24 @@ parser.add_argument('--task', type=str, default='Pendulum-v1', help='Gym environ
 parser.add_argument('--num_envs', type=int, default=1, help='Number of parallel environments')
 parser.add_argument('--max_iterations', type=int, default=1000, help='Maximum number of iterations')
 parser.add_argument('--path_to_saved_policy', type=str, help='Path to the saved policy')
-parser.add_argument('--algorithm', type=str, default='TD3', help='RL algorithm to use')
+parser.add_argument('--algorithm', type=str, default='tdn', help='RL algorithm to use')
 parser.add_argument('--device', type=str, default='cpu', help='Device to use for training (cpu or cuda)')
 parser.add_argument('--video', action='store_true', help='Record video of the trained policy')
 parser.add_argument('--video_steps', type=int, default=500, help='Number of steps to record in video')
+parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
 
 args = parser.parse_args()
 
 
 def main():
+
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
     
     config_file = os.path.join("configs", f"{args.algorithm}Config.yaml")
     general_cfg = load_config(config_file)
     general_cfg['device'] = args.device
-    device = args.device
+    general_cfg['seed'] = args.seed
 
     log_dir = os.path.join("logs", args.task, args.algorithm)
     if not os.path.exists(log_dir):
@@ -47,22 +51,23 @@ def main():
                    hidden_dims=general_cfg['models']["policy"]['hidden_layers'],
                    lr=general_cfg['models']["policy"]['lr'],
                    activation_fct=general_cfg['models']["policy"]['activation_fct'],
-                   stochastic=general_cfg['models']["policy"]['stochastic']).to(device)
+                   stochastic=general_cfg['models']["policy"]['stochastic'],
+                   seed=args.seed).to(args.device)
 
     print("[INFO]: Loading trained model")
     policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "best_policy.pth"))
     policy.eval()
     scaler = load_scaler(size=env.single_observation_space.shape[0],
-                         scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "obs_preprocessor.pth")).to(device)
+                         scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "obs_preprocessor.pth")).to(args.device)
     
-    cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32, device=device)
+    cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
     episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
 
-    obs, _ = env.reset()
+    obs, _ = env.reset(seed=args.seed)
     
     for t in range(args.max_iterations):
         with torch.no_grad():
-            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device)
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
             normalized_obs = scaler(obs_tensor)
             action = policy(normalized_obs)
             action_np = action.cpu().numpy()
@@ -82,7 +87,7 @@ def main():
                 print(f"Episode lengths: {episode_lengths}")
                 print(f"Cumulative rewards: {cumulative_reward}")
                 obs, _ = env.reset()
-                cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32, device=device)
+                cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
                 episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
 
     env.close()
@@ -101,13 +106,13 @@ def main():
             name_prefix="trained_policy_rendering"
         )
         
-        obs, _ = env_render.reset()
+        obs, _ = env_render.reset(seed=args.seed)
         
         print(f"[INFO]: Recording 1 episode for {args.video_steps} steps to {log_dir}")
         
         for _ in range(args.video_steps):
             with torch.no_grad():
-                obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device)
+                obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
                 normalized_obs = scaler(obs_tensor)
                 action = policy(normalized_obs)
                 action_np = action.cpu().numpy()
