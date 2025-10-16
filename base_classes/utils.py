@@ -52,9 +52,12 @@ def soft_update(target:nn.Module, behavior:nn.Module, tau:float):
             target_param.data.copy_((1.0 - tau) * target_param.data + tau * source_param.data)
 
 
-def load_config(config_path:str) -> Dict:
+def load_config(config_path:str, args) -> Dict:
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
+    config.update(vars(args))
+    config['seed'] = args.seed
+    config['device'] = args.device
     return config
 
 def get_noise_model(cfg:Dict, source:str="action") -> dist:
