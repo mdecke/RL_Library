@@ -34,9 +34,7 @@ def main():
     np.random.seed(args.seed)
     
     config_file = os.path.join("configs", f"{args.algorithm}Config.yaml")
-    general_cfg = load_config(config_file)
-    general_cfg['device'] = args.device
-    general_cfg['seed'] = args.seed
+    general_cfg = load_config(config_file, args)
 
     warm_up = general_cfg['training']['warm_up']
     random_steps = general_cfg['training']['random_steps']
