@@ -1,7 +1,5 @@
 import os
 
-import os
-
 from typing import Dict, Tuple
 import pandas as pd
 import torch
@@ -27,7 +25,6 @@ ACTIVATIONS = {
 NOISE_MODELS = {
     "normal": dist.Normal,
     "uniform": dist.Uniform,
-
 }
 
 def get_activation(name: str) -> nn.Module:
