@@ -1,3 +1,5 @@
+import os
+
 from typing import Dict, Tuple
 import pandas as pd
 import torch
@@ -85,3 +87,19 @@ def load_file(filepath: str) -> pd.DataFrame:
         return pd.read_json(filepath)
     else:
         raise ValueError(f"Unsupported file format for {filepath}. Supported formats are: .csv, .xlsx, .xls, .pkl, .pickle, .json")
+
+
+def make_data_frame(data_dir:str) -> pd.DataFrame:
+    csv_paths = []
+    for file_name in os.listdir(data_dir):
+        if file_name.endswith(".csv"):
+            file = os.path.join(data_dir, file_name)
+            csv_paths.append(file)
+    if len(csv_paths) == 0:
+        raise FileNotFoundError(f"No CSV files found in {data_dir}")
+    training_data = pd.DataFrame()
+    for csv_path in csv_paths:
+        df = load_file(csv_path)
+        df["seed"] = int(os.path.basename(csv_path).split("_")[-1].split(".")[0])
+        training_data = pd.concat([training_data, df], ignore_index=True)
+    return training_data
