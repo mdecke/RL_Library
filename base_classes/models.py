@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -64,6 +64,7 @@ class Actor(nn.Module):
         self.eval()
 
 
+
 class Critic(nn.Module):
     def __init__(self, input_dim:int, hidden_dims:List[int], lr:float, activation_fct:str, output_dim:int=1):
         super().__init__()
@@ -81,13 +82,55 @@ class Critic(nn.Module):
             layers.append(get_activation(activation_fct))
             prev_dim = hidden_dim
         
-        layers.append(nn.Linear(prev_dim, self.output_dim)) # action prediction
+        layers.append(nn.Linear(prev_dim, self.output_dim))
         self.net = nn.Sequential(*layers)
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, input:torch.Tensor)->torch.Tensor:
         return self.net(input)
+
+    def save(self, filepath:str)->None:
+        torch.save(self.state_dict(), filepath)
+
+    def load(self, filepath:str)->None:
+        self.load_state_dict(torch.load(filepath))
+        self.eval()
+
+
+
+class MLE(nn.Module):
+    def __init__(self, input_dim:int, output_dim:int, hidden_dims:List[int], lr:float, activation_fct:str):
+        super().__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.lr = lr
+
+        layers = []
+        prev_dim = self.input_dim
+
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(get_activation(activation_fct))
+            prev_dim = hidden_dim
+        
+        self.net = nn.Sequential(*layers)
+        self.mu_head = nn.Linear(prev_dim, self.output_dim)
+        self.log_sigma_head = nn.Linear(prev_dim, self.output_dim)
+
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+
+    def forward(self, input:torch.Tensor)->torch.Tensor:
+        logits = self.net(input)
+        mu = self.mu_head(logits)
+        log_sigma = self.log_sigma_head(logits)
+        return mu, log_sigma
+    
+    def sample(self, input:torch.Tensor, generator:Optional[torch.Generator]=None)->torch.Tensor:
+        mu, log_sigma = self.forward(input)
+        sigma = torch.exp(log_sigma) + 1e-5  # Ensure sigma is not zero for numerical stability
+        return torch.normal(mu, sigma, generator=generator)
 
     def save(self, filepath:str)->None:
         torch.save(self.state_dict(), filepath)
