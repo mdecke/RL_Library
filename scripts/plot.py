@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from base_classes.utils import load_file
+from base_classes.utils import load_file, make_data_frame
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Plot training metrics for a given environment and algorithm")
@@ -82,21 +82,7 @@ def main():
     args = parse_args()
 
     training_stats_folder = os.path.join(args.log_dir, args.task, args.algorithm, "training_stats")
-    csv_paths = []
-    for file_name in os.listdir(training_stats_folder):
-        if file_name.endswith(".csv"):
-            file = os.path.join(training_stats_folder, file_name)
-            csv_paths.append(file)
-    
-    if len(csv_paths) == 0:
-        raise FileNotFoundError(f"No CSV files found in {training_stats_folder}")
-
-    training_data = pd.DataFrame()
-    for csv_path in csv_paths:
-        df = load_file(csv_path)
-        df["seed"] = int(os.path.basename(csv_path).split("_")[-1].split(".")[0])
-        training_data = pd.concat([training_data, df], ignore_index=True)
-
+    training_data = make_data_frame(training_stats_folder)
     
     title = f"{args.algorithm} · {args.task}"
     smoothing = max(int(args.smoothing_window), 0)
