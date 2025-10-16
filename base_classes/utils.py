@@ -1,5 +1,7 @@
 import os
 
+import os
+
 from typing import Dict, Tuple
 import pandas as pd
 import torch
@@ -93,7 +95,6 @@ def gaussian_nll_loss(mu:torch.Tensor, log_sigma:torch.Tensor, target:torch.Tens
     nll = 0.5 * torch.log(2 * torch.pi * (sigma ** 2)) + 0.5 * ((target - mu) ** 2) / (sigma ** 2) # also 0.5 * torch.log(2 * torch.pi) + 0.5 * log_sigma + 0.5 * ((target - mu) ** 2) / (sigma ** 2)  -- valid formulation
     # loss = nn.GaussianNLLLoss() might be pb mean over batch dimension
     return nll.mean()
-
 
 def make_data_frame(data_dir:str) -> pd.DataFrame:
     csv_paths = []
