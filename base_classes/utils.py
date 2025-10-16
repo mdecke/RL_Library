@@ -1,3 +1,5 @@
+import os
+
 from typing import Dict, Tuple
 import pandas as pd
 import torch
@@ -52,9 +54,12 @@ def soft_update(target:nn.Module, behavior:nn.Module, tau:float):
             target_param.data.copy_((1.0 - tau) * target_param.data + tau * source_param.data)
 
 
-def load_config(config_path:str) -> Dict:
+def load_config(config_path:str, args) -> Dict:
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
+    config.update(vars(args))
+    config['seed'] = args.seed
+    config['device'] = args.device
     return config
 
 def get_noise_model(cfg:Dict, source:str="action") -> dist:
@@ -82,3 +87,19 @@ def load_file(filepath: str) -> pd.DataFrame:
         return pd.read_json(filepath)
     else:
         raise ValueError(f"Unsupported file format for {filepath}. Supported formats are: .csv, .xlsx, .xls, .pkl, .pickle, .json")
+
+
+def make_data_frame(data_dir:str) -> pd.DataFrame:
+    csv_paths = []
+    for file_name in os.listdir(data_dir):
+        if file_name.endswith(".csv"):
+            file = os.path.join(data_dir, file_name)
+            csv_paths.append(file)
+    if len(csv_paths) == 0:
+        raise FileNotFoundError(f"No CSV files found in {data_dir}")
+    training_data = pd.DataFrame()
+    for csv_path in csv_paths:
+        df = load_file(csv_path)
+        df["seed"] = int(os.path.basename(csv_path).split("_")[-1].split(".")[0])
+        training_data = pd.concat([training_data, df], ignore_index=True)
+    return training_data

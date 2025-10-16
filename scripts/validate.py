@@ -34,9 +34,7 @@ def main():
     np.random.seed(args.seed)
     
     config_file = os.path.join("configs", f"{args.algorithm}Config.yaml")
-    general_cfg = load_config(config_file)
-    general_cfg['device'] = args.device
-    general_cfg['seed'] = args.seed
+    general_cfg = load_config(config_file, args)
 
     log_dir = os.path.join("logs", args.task, args.algorithm, "validation_stats")
     if not os.path.exists(log_dir):
