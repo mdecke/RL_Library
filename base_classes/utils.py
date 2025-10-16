@@ -87,6 +87,12 @@ def load_file(filepath: str) -> pd.DataFrame:
         return pd.read_json(filepath)
     else:
         raise ValueError(f"Unsupported file format for {filepath}. Supported formats are: .csv, .xlsx, .xls, .pkl, .pickle, .json")
+    
+def gaussian_nll_loss(mu:torch.Tensor, log_sigma:torch.Tensor, target:torch.Tensor)->torch.Tensor:
+    sigma = torch.exp(log_sigma) + 1e-5  # Ensure sigma is not zero for numerical stability
+    nll = 0.5 * torch.log(2 * torch.pi * (sigma ** 2)) + 0.5 * ((target - mu) ** 2) / (sigma ** 2) # also 0.5 * torch.log(2 * torch.pi) + 0.5 * log_sigma + 0.5 * ((target - mu) ** 2) / (sigma ** 2)  -- valid formulation
+    # loss = nn.GaussianNLLLoss() might be pb mean over batch dimension
+    return nll.mean()
 
 
 def make_data_frame(data_dir:str) -> pd.DataFrame:
