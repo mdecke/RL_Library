@@ -100,21 +100,26 @@ class Critic(nn.Module):
 
 
 class MLE(nn.Module):
-    def __init__(self, input_dim:int, output_dim:int, hidden_dims:List[int], lr:float, activation_fct:str):
+    def __init__(self, input_dim:int, output_dim:int, hidden_dims:List[int], lr:float, activation_fct:str, dropout:float=0.0):
         super().__init__()
 
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.lr = lr
+        self.dropout = dropout
 
         layers = []
         prev_dim = self.input_dim
 
-        for hidden_dim in hidden_dims:
+        for i, hidden_dim in enumerate(hidden_dims):
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(get_activation(activation_fct))
+
+            if i < len(hidden_dims) - 1:
+                layers.append(nn.Dropout(dropout))
+            
             prev_dim = hidden_dim
-        
+
         self.net = nn.Sequential(*layers)
         self.mu_head = nn.Linear(prev_dim, self.output_dim)
         self.log_sigma_head = nn.Linear(prev_dim, self.output_dim)
