@@ -116,24 +116,6 @@ class MLEExpert:
         avg_val_loss = val_loss / len(val_data)
         return avg_val_loss
     
-    def test(self, test_data:torch.utils.data.DataLoader):
-        self.model.eval()
-        test_loss = 0.0
-        with torch.no_grad():
-            for obss, acts in test_data:
-                if self.preprocess_inputs:
-                    obss = self.obs_preprocessor(obss).to(self.device)
-                else:
-                    obss = obss.to(self.device)
-                acts = acts.to(self.device)
-
-                mu, log_sigma = self.model(obss)
-                batch_loss = gaussian_nll_loss(mu, log_sigma, acts)
-                test_loss += batch_loss.item()
-        
-        avg_test_loss = test_loss / len(test_data)
-        print(f"Test Loss: {avg_test_loss:.4f}")
-        return avg_test_loss
     
     def save(self, folder_path:str):
         model_path = os.path.join(folder_path, "mle_expert.pth")
