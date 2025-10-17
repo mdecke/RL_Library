@@ -127,7 +127,7 @@ class MLE(nn.Module):
     def forward(self, input:torch.Tensor)->torch.Tensor:
         logits = self.net(input)
         mu = self.mu_head(logits)
-        log_sigma = self.log_sigma_head(logits)
+        log_sigma = torch.clamp(self.log_sigma_head(logits), min=-5.0, max=0.5)  # Clamp for numerical stability
         return mu, log_sigma
     
     def sample(self, input:torch.Tensor, generator:Optional[torch.Generator]=None)->torch.Tensor:
