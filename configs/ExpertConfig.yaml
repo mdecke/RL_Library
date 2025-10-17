@@ -1,0 +1,22 @@
+seed: 42
+device: cpu
+history_length: 10
+validation_split: 0.2
+test_split: 0.2
+val_interval: 1
+preprocess_inputs: true
+
+
+
+mle:
+  learning_rate: 0.001
+  batch_size: 32
+  epochs: 100
+  hidden_sizes: [256, 256]
+  activation: relu
+  n_epochs: 500
+
+  
+
+
+  
