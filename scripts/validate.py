@@ -43,8 +43,10 @@ def main():
     trajs = {"obss":[], "acts":[], "rews":[], "terms":[]}
 
     env = gym.make_vec(args.task, num_envs=args.num_envs)
-    policy = Actor(input_dim=env.single_observation_space.shape[0],
-                   output_dim=env.single_action_space.shape[0],
+    obs_dim = env.single_observation_space.shape[0] * general_cfg["agent"]["state_history"]
+    action_dim = env.single_action_space.shape[0] * general_cfg["agent"]["action_history"]
+    policy = Actor(input_dim=obs_dim,
+                   output_dim=action_dim,
                    action_limit=float(env.single_action_space.high[0]),
                    hidden_dims=general_cfg['models']["policy"]['hidden_layers'],
                    lr=general_cfg['models']["policy"]['lr'],
@@ -55,8 +57,10 @@ def main():
     print("[INFO]: Loading trained model")
     policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "best_policy.pth"))
     policy.eval()
-    scaler = load_scaler(size=env.single_observation_space.shape[0],
-                         scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth")).to(args.device)
+    scaling = getattr(general_cfg["agent"], "preprocess_inputs", None)
+    if scaling is not None:
+        scaler = load_scaler(size=obs_dim,
+                            scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth")).to(args.device)
 
     cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
     episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
@@ -66,10 +70,13 @@ def main():
     for t in range(args.max_iterations):
         with torch.no_grad():
             obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
-            normalized_obs = scaler(obs_tensor)
+            if scaling is not None:
+                normalized_obs = scaler(obs_tensor)
+            else:
+                normalized_obs = obs_tensor
             action = policy(normalized_obs)
             action_np = action.cpu().numpy()
-            obs, reward, terminated, _, _ = env.step(action_np)
+            obs, reward, terminated, truncated, _ = env.step(action_np)
             cumulative_reward += reward
             episode_lengths += 1
 
@@ -81,7 +88,7 @@ def main():
             print(f"timesteps/num_validation_steps: {t}/{args.max_iterations}")
 
 
-            if terminated.any():
+            if terminated.any() or truncated.any():
                 print(f"Episode lengths: {episode_lengths}")
                 print(f"Cumulative rewards: {cumulative_reward}")
                 obs, _ = env.reset()
