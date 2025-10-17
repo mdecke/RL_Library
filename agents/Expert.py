@@ -5,19 +5,18 @@ import torch.optim as optim
 
 from skrl.resources.preprocessors.torch import RunningStandardScaler
 from base_classes.models import MLE #, CNF
-from base_classes.utils import gaussian_nll_loss, EarlyStopping
+from base_classes.utils import gaussian_nll_loss, init_model_weights, print_model_summary, EarlyStopping
 
 
 
 
-class Expert:
+class MLEExpert:
     def __init__(self, env, cfg:Dict):
         self.env = env
         self.obs_dim = env.single_observation_space.shape[0]
         self.action_dim = env.single_action_space.shape[0]
 
         self.cfg = cfg
-        self.expert_type = cfg['expert_type']
         self.expert_domain = cfg['expert_domain']
         self.device = cfg['device']
         self.validation_interval = cfg.get("validation_interval", 1)
@@ -30,19 +29,19 @@ class Expert:
 
 
         self.init_expert()
+        
 
     def init_expert(self):
         self.lr = self.cfg[f"{self.expert_type}"]["learning_rate"]
         self.act_fct = self.cfg[f"{self.expert_type}"]["activation_fct"]
 
-        if self.expert_type == 'mle':
-            self.model = MLE(self.action_dim, self.obs_dim, self.cfg["hidden_sizes"], self.lr, self.act_fct).to(self.device)
-        # elif self.expert_type == 'cnf':
-        #     Raise NotImplementedError("CNF expert not yet implemented")
-        else:
-            raise ValueError(f"Expert type '{self.expert_type}' is not recognized.")
-
-    def train_mle(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
+        self.model = MLE(self.action_dim, self.obs_dim, self.cfg["hidden_sizes"], self.lr, self.act_fct).to(self.device)
+        init_model_weights(self.model)
+        print("[INFO]: Models initialized")
+        print("[INFO]: MLE Expert summary:")
+        print_model_summary(self.model, input_size=(1, self.obs_dim))
+      
+    def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
         self.model.train()
         num_epochs = self.cfg["num_epochs"]
 
@@ -72,7 +71,7 @@ class Expert:
             print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
 
             if (epoch + 1) % self.cfg["val_interval"] == 0:
-                val_loss = self.validate_mle(val_data)
+                val_loss = self.validate(val_data)
                 print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
                 if early_stopping(val_loss, self.model):
                     print(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
@@ -82,7 +81,7 @@ class Expert:
             self.model.scheduler.step(avg_epoch_loss)
         return losses
     
-    def validate_mle(self, val_data:torch.utils.data.DataLoader):
+    def validate(self, val_data:torch.utils.data.DataLoader):
         self.model.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -100,7 +99,7 @@ class Expert:
         avg_val_loss = val_loss / len(val_data)
         return avg_val_loss
     
-    def test_mle(self, test_data:torch.utils.data.DataLoader):
+    def test(self, test_data:torch.utils.data.DataLoader):
         self.model.eval()
         test_loss = 0.0
         with torch.no_grad():
