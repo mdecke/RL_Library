@@ -120,6 +120,9 @@ class MLE(nn.Module):
         self.log_sigma_head = nn.Linear(prev_dim, self.output_dim)
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
+                                                           factor=0.5, patience=5,
+                                                           verbose=True)
 
     def forward(self, input:torch.Tensor)->torch.Tensor:
         logits = self.net(input)
