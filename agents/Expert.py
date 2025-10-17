@@ -1,8 +1,7 @@
 from typing import Dict
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
+from tqdm import tqdm
 from skrl.resources.preprocessors.torch import RunningStandardScaler
 from base_classes.models import MLE #, CNF
 from base_classes.utils import gaussian_nll_loss, init_model_weights, print_model_summary, EarlyStopping
@@ -11,10 +10,9 @@ from base_classes.utils import gaussian_nll_loss, init_model_weights, print_mode
 
 
 class MLEExpert:
-    def __init__(self, env, cfg:Dict):
-        self.env = env
-        self.obs_dim = env.single_observation_space.shape[0]
-        self.action_dim = env.single_action_space.shape[0]
+    def __init__(self, cfg:Dict):
+        self.obs_dim = cfg['obs_dim']
+        self.action_dim = cfg['action_dim']
 
         self.cfg = cfg
         self.expert_domain = cfg['expert_domain']
@@ -29,13 +27,13 @@ class MLEExpert:
 
 
         self.init_expert()
-        
 
     def init_expert(self):
-        self.lr = self.cfg[f"{self.expert_type}"]["learning_rate"]
-        self.act_fct = self.cfg[f"{self.expert_type}"]["activation_fct"]
+        self.lr = self.cfg["mle"]["learning_rate"]
+        self.act_fct = self.cfg["mle"]["activation_fct"]
+        self.hidden_sizes = self.cfg["mle"]["hidden_sizes"]
 
-        self.model = MLE(self.action_dim, self.obs_dim, self.cfg["hidden_sizes"], self.lr, self.act_fct).to(self.device)
+        self.model = MLE(self.obs_dim, self.action_dim, self.hidden_sizes, self.lr, self.act_fct).to(self.device)
         init_model_weights(self.model)
         print("[INFO]: Models initialized")
         print("[INFO]: MLE Expert summary:")
@@ -43,13 +41,16 @@ class MLEExpert:
       
     def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
         self.model.train()
-        num_epochs = self.cfg["num_epochs"]
+        num_epochs = self.cfg["mle"]["n_epochs"]
 
         early_stopping = EarlyStopping(patience=self.patience, min_delta=self.min_delta, verbose=True)
 
-        losses = []
+        train_losses = []
+        val_losses = []
 
-        for epoch in range(num_epochs):
+        epoch_pbar = tqdm(range(num_epochs), desc="Training", unit="epoch")
+    
+        for epoch in epoch_pbar:
             epoch_loss = 0.0
             for obss, acts in train_data:
                 if self.preprocess_inputs:
@@ -67,20 +68,35 @@ class MLEExpert:
                 epoch_loss += batch_loss.item()
             
             avg_epoch_loss = epoch_loss / len(train_data)
-            losses.append(avg_epoch_loss)
-            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
+            train_losses.append(avg_epoch_loss)
+            # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
+            epoch_pbar.set_postfix({
+                'train_loss': f'{avg_epoch_loss:.4f}',
+                'lr': f'{self.model.optimizer.param_groups[0]["lr"]:.6f}',
+            })
 
             if (epoch + 1) % self.cfg["val_interval"] == 0:
                 val_loss = self.validate(val_data)
-                print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
+                val_losses.append(val_loss)
+                # print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
+                epoch_pbar.set_postfix({
+                'train_loss': f'{avg_epoch_loss:.4f}',
+                'val_loss': f'{val_loss:.4f}',
+                'lr': f'{self.model.optimizer.param_groups[0]["lr"]:.6f}'
+            })
                 if early_stopping(val_loss, self.model):
-                    print(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
-                    print(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
+                    # print(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
+                    # print(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
+                    epoch_pbar.write(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
+                    epoch_pbar.write(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
                     break
             
             self.model.scheduler.step(avg_epoch_loss)
-        return losses
-    
+        
+        epoch_pbar.close()
+
+        return train_losses, val_losses
+
     def validate(self, val_data:torch.utils.data.DataLoader):
         self.model.eval()
         val_loss = 0.0
