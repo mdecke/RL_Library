@@ -90,7 +90,23 @@ def main():
 
     env.close()
 
-    df = pd.DataFrame(trajs)
+    obss_array = np.vstack(trajs["obss"]) 
+    acts_array = np.vstack(trajs["acts"]) 
+    rews_array = np.concatenate(trajs["rews"])
+    terms_array = np.concatenate(trajs["terms"])
+    
+    data_dict = {}
+    
+    for i in range(obss_array.shape[1]):
+        data_dict[f'obs_{i}'] = obss_array[:, i]
+    
+    for i in range(acts_array.shape[1]):
+        data_dict[f'act_{i}'] = acts_array[:, i]
+    
+    data_dict['reward'] = rews_array
+    data_dict['terminated'] = terms_array
+    
+    df = pd.DataFrame(data_dict)
     df.to_csv(os.path.join(log_dir, f"seed_{args.seed}.csv"), index=False)
 
     if args.video:
