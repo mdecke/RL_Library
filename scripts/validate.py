@@ -53,11 +53,11 @@ def main():
                    seed=args.seed).to(args.device)
 
     print("[INFO]: Loading trained model")
-    policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "best_policy.pth"))
+    policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "best_policy.pth"))
     policy.eval()
     scaler = load_scaler(size=env.single_observation_space.shape[0],
-                         scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "obs_preprocessor.pth")).to(args.device)
-    
+                         scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth")).to(args.device)
+
     cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
     episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
 
