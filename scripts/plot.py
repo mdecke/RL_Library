@@ -76,7 +76,75 @@ def plot_series(ax, stats_df: pd.DataFrame, ylabel: str, title: str, label: str)
     ax.legend(loc="upper left", fontsize="x-small")
 
 
+def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim:int): 
+    max_plots_per_fig = 6
+    num_figures = int(np.ceil(action_dim / max_plots_per_fig))
+    figures = []
+    
+    for fig_idx in range(num_figures):
+        start_dim = fig_idx * max_plots_per_fig
+        end_dim = min(start_dim + max_plots_per_fig, action_dim)
+        num_plots = end_dim - start_dim
+        
+        if num_plots <= 3:
+            nrows = num_plots
+            ncols = 1
+        else:
+            ncols = 2
+            nrows = int(np.ceil(num_plots / 2))
+        
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, 
+                                figsize=(6*ncols, 4*nrows),
+                                squeeze=False)
+        
+        if num_figures > 1:
+            fig.suptitle(f'Action Predictions - Figure {fig_idx + 1}/{num_figures} '
+                        f'(Dimensions {start_dim}-{end_dim-1})',
+                        fontsize=16, fontweight='bold', y=1.00)
+        
+        axes_flat = axes.flatten()
+        
+        for plot_idx, action_idx in enumerate(range(start_dim, end_dim)):
+            ax = axes_flat[plot_idx]
+            ax.scatter(acts[:, action_idx], 
+                      predictions[:, action_idx],
+                      alpha=0.5, s=10, label='Predictions')
+            
+            min_val = min(acts[:, action_idx].min().item(), 
+                         predictions[:, action_idx].min().item())
+            max_val = max(acts[:, action_idx].max().item(),
+                         predictions[:, action_idx].max().item())
+            ax.plot([min_val, max_val], [min_val, max_val],
+                   'r--', linewidth=2, label='y = ŷ')
+            
+            ax.set_xlabel(f'True Action {action_idx}', fontsize=12)
+            ax.set_ylabel(f'Predicted Action {action_idx}', fontsize=12)
+            ax.set_title(f'Action Dimension {action_idx}', fontsize=14, fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            # Add R² score or MSE as text
+            mse = ((acts[:, action_idx] - predictions[:, action_idx])**2).mean().item()
 
+            # Calculate R² score
+            ss_res = ((acts[:, action_idx] - predictions[:, action_idx])**2).sum().item()
+            ss_tot = ((acts[:, action_idx] - acts[:, action_idx].mean())**2).sum().item()
+            r2 = 1 - (ss_res / (ss_tot + 1e-8))
+            
+            ax.text(0.05, 0.95, f'MSE: {mse:.4f}\nR²: {r2:.4f}', 
+                   transform=ax.transAxes,
+                   verticalalignment='top',
+                   horizontalalignment='right',
+                   bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        
+        # Hide unused subplots
+        for plot_idx in range(num_plots, len(axes_flat)):
+            axes_flat[plot_idx].set_visible(False)
+        
+        plt.tight_layout()
+        figures.append(fig)
+    
+    return figures
 
 def main():
     args = parse_args()
