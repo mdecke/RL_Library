@@ -107,3 +107,38 @@ def make_data_frame(data_dir:str) -> pd.DataFrame:
         df["seed"] = int(os.path.basename(csv_path).split("_")[-1].split(".")[0])
         training_data = pd.concat([training_data, df], ignore_index=True)
     return training_data
+
+class EarlyStopping:
+    def __init__(self, patience:int=20, min_delta:float=1e-4, verbose:bool=True):
+
+        self.patience = patience
+        self.min_delta = min_delta
+        self.verbose = verbose
+        self.counter = 0
+        self.best_loss = None
+        self.early_stop = False
+        self.best_model_state = None
+    
+    def __call__(self, val_loss:float, model:nn.Module)->bool:
+        if self.best_loss is None:
+            self.best_loss = val_loss
+            self.best_model_state = model.state_dict().copy()
+        elif val_loss > self.best_loss - self.min_delta:
+            self.counter += 1
+            if self.verbose:
+                print(f"EarlyStopping counter: {self.counter}/{self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            if self.verbose:
+                print(f"Validation loss improved: {self.best_loss:.6f} → {val_loss:.6f}")
+            self.best_loss = val_loss
+            self.best_model_state = model.state_dict().copy()
+            self.counter = 0
+        
+        return self.early_stop
+    
+    def load_best_model(self, model:nn.Module)->None:
+        """Load the best model state"""
+        if self.best_model_state is not None:
+            model.load_state_dict(self.best_model_state)
