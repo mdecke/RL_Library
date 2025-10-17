@@ -43,7 +43,7 @@ def main():
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
-    save_dir = os.path.join(args.path_to_saved_policy, args.task, args.algorithm)
+    save_dir = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
 
