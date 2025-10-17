@@ -74,17 +74,21 @@ def main():
         obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
     else:
         obs, _ = env.reset(seed=args.seed)  
+    
     for t in progress_bar:
         obs_tensor = torch.as_tensor(obs, dtype=torch.float32, device=agent.device)
         if obs_tensor.dim() == 1:
             obs_tensor = obs_tensor.unsqueeze(0)
-
+        if agent.preprocess_inputs:
+            normalized_obs = agent.obs_preprocessor(obs_tensor, train=True)
+        else:
+            normalized_obs = obs_tensor
+        
         with torch.no_grad():
             if t < warm_up or t < random_steps:
                 action = env.action_space.sample()
                 clipped_action = torch.as_tensor(action, dtype=torch.float32, device=agent.device)
             else:
-                normalized_obs = agent.obs_preprocessor(obs_tensor)
                 action = agent.policy.forward(normalized_obs)
                 expl_noise = noise.sample(action.shape).to(agent.device)
                 noisy_action = action + expl_noise
