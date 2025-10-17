@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 import torch
 
@@ -133,3 +134,12 @@ class MLEExpert:
         avg_test_loss = test_loss / len(test_data)
         print(f"Test Loss: {avg_test_loss:.4f}")
         return avg_test_loss
+    
+    def save(self, folder_path:str):
+        model_path = os.path.join(folder_path, "mle_expert.pth")
+        torch.save(self.model.state_dict(), model_path)
+        print(f"[INFO]: MLE Expert model saved to {model_path}")
+        if self.preprocess_inputs:
+            experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
+            torch.save(self.obs_preprocessor.state_dict(), experts_preprocessor_path)
+            print(f"[INFO]: Expert observation preprocessor saved to {experts_preprocessor_path}")
