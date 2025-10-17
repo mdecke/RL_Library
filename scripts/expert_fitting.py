@@ -1,6 +1,5 @@
 import os
-import yaml
-import ast
+
 import argparse
 import numpy as np
 import pandas as pd
@@ -8,13 +7,9 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from base_classes.models import MLE
-from base_classes.utils import load_config, make_data_frame, gaussian_nll_loss
+from agents import create_expert
+from base_classes.utils import load_config, make_data_frame
 
-EXPERTS = {
-    "mle": MLE,
-    # "cnf": CNF,  # Placeholder for future expert models
-}
 
 parser = argparse.ArgumentParser(description="Fit an expert model to data.")
 parser.add_argument("--expert_type", type=str, choices=["mle","cnf"], default="mle", help="Type of expert model to fit")
@@ -40,12 +35,16 @@ def main():
     obss_tensor = torch.tensor(expert_data[[col for col in expert_data.columns if "obs" in col]].values, dtype=torch.float32).to(args.device)
     acts_tensor = torch.tensor(expert_data[[col for col in expert_data.columns if "act" in col]].values, dtype=torch.float32).to(args.device)
 
+    cfg["obs_dim"] = obss_tensor.shape[1]
+    cfg["action_dim"] = acts_tensor.shape[1]
+
     index = np.arange(len(expert_data))
     np.random.shuffle(index)
-    print(index)
+
     test_idx = index[:int(cfg["test_split"] * len(index))]
-    val_idx = index[int(cfg["test_split"] * len(index)):int(cfg["validation_split"] * len(index))]
-    train_idx = index[int(cfg["validation_split"] * len(index)):]
+    val_idx = index[int(cfg["test_split"] * len(index)):int(cfg["validation_split"] * len(index))+int(cfg["test_split"] * len(index))]
+    train_idx = index[int(cfg["validation_split"] * len(index))+int(cfg["test_split"] * len(index)):]
+
 
     train_obss = obss_tensor[train_idx]
     train_acts = acts_tensor[train_idx]
@@ -55,12 +54,23 @@ def main():
     val_acts = acts_tensor[val_idx]
 
     train_data = TensorDataset(train_obss, train_acts)
-    train_loader = DataLoader(train_data, batch_size=cfg["batch_size"], shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=cfg[f"{args.expert_type}"]["batch_size"], shuffle=True)
     val_data = TensorDataset(val_obss, val_acts)
     val_loader = DataLoader(val_data, shuffle=False)
 
     test_data = TensorDataset(test_obss, test_acts)
     test_loader = DataLoader(test_data, shuffle=False)
+
+    
+    expert = create_expert(args.expert_type, cfg)
+    train_losses, val_losses = expert.train(train_loader, val_loader)
+    test_loss = expert.validate(test_loader)
+
+    print(train_losses)
+    print(val_losses)
+    print(test_loss)
+
+
 
    
 
