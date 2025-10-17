@@ -13,7 +13,7 @@ mle:
   batch_size: 32
   epochs: 100
   hidden_sizes: [256, 256]
-  activation: relu
+  activation_fct: relu
   n_epochs: 500
 
   
