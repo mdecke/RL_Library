@@ -5,16 +5,30 @@ validation_split: 0.2
 test_split: 0.2
 val_interval: 1
 preprocess_inputs: true
+grad_clipping: 1.0
+early_stopping_patience: 15  # Increased from default 10 - give more room after LR reduction
+min_delta: 0.00001  # Tighter convergence criterion
 
 
 
 mle:
-  learning_rate: 0.001
-  batch_size: 32
-  epochs: 100
-  hidden_sizes: [256, 256]
-  activation_fct: relu
+  learning_rate: 0.001  # Increased from 0.0005 - faster initial learning
+  batch_size: 512
+  hidden_sizes: [512, 512, 256]  # Deeper network for better capacity
+  activation_fct: gelu
   n_epochs: 500
+  dropout: 0.2
+  weight_decay: 0.0002  # L2 regularization to prevent overfitting
+
+gmm:
+  learning_rate: 0.001  # Increased from 0.0005 - faster initial learning
+  batch_size: 512
+  hidden_sizes: [512, 512, 256]  # Deeper network for better capacity
+  activation_fct: gelu
+  n_epochs: 500
+  n_components: 5  # Number of Gaussian components in the mixture
+  dropout: 0.2
+  weight_decay: 0.0002  # L2 regularization to prevent overf
 
   
 
