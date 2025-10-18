@@ -59,6 +59,7 @@ def main():
     policy.eval()
     scaling = getattr(general_cfg["agent"], "preprocess_inputs", None)
     if scaling is not None:
+        print("[INFO]: Loading observation preprocessor scaler")
         scaler = load_scaler(size=obs_dim,
                             scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth")).to(args.device)
 
@@ -135,7 +136,10 @@ def main():
         for _ in range(args.video_steps):
             with torch.no_grad():
                 obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
-                normalized_obs = scaler(obs_tensor)
+                if scaling is not None:
+                    normalized_obs = scaler(obs_tensor)
+                else:
+                    normalized_obs = obs_tensor
                 action = policy(normalized_obs)
                 action_np = action.cpu().numpy()
                 obs, reward, terminated, _, _ = env_render.step(action_np)
