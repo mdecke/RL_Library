@@ -100,13 +100,16 @@ class Critic(nn.Module):
 
 
 class MLE(nn.Module):
-    def __init__(self, input_dim:int, output_dim:int, hidden_dims:List[int], lr:float, activation_fct:str, dropout:float=0.0):
+    def __init__(self, input_dim:int, output_dim:int, action_lim:float, hidden_dims:List[int], 
+                 lr:float, activation_fct:str, dropout:float=0.0, weight_decay:float=0.0):
         super().__init__()
 
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.lr = lr
+        self.action_lim = action_lim
         self.dropout = dropout
+        self.weight_decay = weight_decay
 
         layers = []
         prev_dim = self.input_dim
@@ -124,21 +127,93 @@ class MLE(nn.Module):
         self.mu_head = nn.Linear(prev_dim, self.output_dim)
         self.log_sigma_head = nn.Linear(prev_dim, self.output_dim)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
-                                                           factor=0.5, patience=5,
+                                                           factor=0.5, patience=3,  # Reduced from 5 to 3
                                                            verbose=True)
 
     def forward(self, input:torch.Tensor)->torch.Tensor:
         logits = self.net(input)
-        mu = self.mu_head(logits)
+        mu = torch.tanh(self.mu_head(logits)) * self.action_lim
         log_sigma = torch.clamp(self.log_sigma_head(logits), min=-5.0, max=0.5)  # Clamp for numerical stability
         return mu, log_sigma
     
-    def sample(self, input:torch.Tensor, generator:Optional[torch.Generator]=None)->torch.Tensor:
-        mu, log_sigma = self.forward(input)
+    def sample(self, inputs:torch.Tensor, generator:Optional[torch.Generator]=None)->torch.Tensor:
+        mu, log_sigma = self.forward(inputs)
         sigma = torch.exp(log_sigma) + 1e-5  # Ensure sigma is not zero for numerical stability
         return torch.normal(mu, sigma, generator=generator)
+
+    def save(self, filepath:str)->None:
+        torch.save(self.state_dict(), filepath)
+
+    def load(self, filepath:str)->None:
+        self.load_state_dict(torch.load(filepath))
+        self.eval()
+
+
+class GMM(nn.Module):
+    def __init__(self, input_dim:int, output_dim:int, action_lim:float, num_components:int, hidden_dims:List[int], 
+                 lr:float, activation_fct:str, dropout:float=0.0, weight_decay:float=0.0):
+        super().__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.num_components = num_components
+        self.lr = lr
+
+        self.action_lim = action_lim
+        self.dropout = dropout
+        self.weight_decay = weight_decay
+
+        layers = []
+        prev_dim = self.input_dim
+
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(get_activation(activation_fct))
+            prev_dim = hidden_dim
+
+        self.net = nn.Sequential(*layers)
+        self.mixture_weights_head = nn.Linear(prev_dim, self.num_components)
+        self.mu_head = nn.Linear(prev_dim, self.num_components * self.output_dim)
+        self.log_sigma_head = nn.Linear(prev_dim, self.num_components * self.output_dim)
+
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
+                                                           factor=0.5, patience=3,  # Reduced from 5 to 3
+                                                           verbose=True)
+
+    def forward(self, input:torch.Tensor):
+        logits = self.net(input)
+        pi_logits = self.mixture_weights_head(logits)
+        pi = nn.functional.softmax(pi_logits, dim=-1)
+
+        mu = torch.tanh(self.mu_head(logits).view(-1, self.num_components, self.output_dim)) * self.action_lim
+        log_sigma = self.log_sigma_head(logits).view(-1, self.num_components, self.output_dim)
+
+        return mu, log_sigma, pi
+    
+    def sample(self, inputs:torch.Tensor, generator:Optional[torch.Generator]=None)->torch.Tensor:
+        mu, log_sigma, pi = self.forward(inputs)
+        batch_size = inputs.size(0)
+        categorical = torch.distributions.Categorical(pi)
+        component_indices = categorical.sample(generator=generator)
+
+        means = mu[torch.arange(batch_size), component_indices]
+        sigma = torch.exp(log_sigma) + 1e-5  # Ensure sigma is not zero for numerical stability
+        stds = sigma[torch.arange(batch_size), component_indices]
+        sampled_actions = torch.normal(means, stds, generator=generator)
+
+        return sampled_actions
+    
+    def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
+        mu, _, pi = self.forward(inputs)
+        batch_size = inputs.size(0)
+        _, component_indices = torch.max(pi, dim=-1)
+
+        most_likely_means = mu[torch.arange(batch_size), component_indices]
+        return most_likely_means
+    
 
     def save(self, filepath:str)->None:
         torch.save(self.state_dict(), filepath)
