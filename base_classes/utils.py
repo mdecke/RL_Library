@@ -62,19 +62,23 @@ def load_config(config_path:str, args) -> Dict:
     config['device'] = args.device
     return config
 
+
 def get_noise_model(cfg:Dict, source:str="action") -> dist:
     noise_type = cfg['agent'][f'{source}_noise_type']
     params = cfg['agent'][f'{source}_noise_params']
     return NOISE_MODELS[noise_type](**params)
 
+
 def print_model_summary(model:nn.Module, input_size:Tuple[int])->None:
     summary(model, input_size=input_size)
     
+
 
 def load_scaler(size:int, scaler_filepath: str):
     scaler = RunningStandardScaler(size=size)
     scaler.load_state_dict(torch.load(scaler_filepath))
     return scaler
+
 
 def load_file(filepath: str) -> pd.DataFrame:
     if filepath.endswith('.csv'):
@@ -87,13 +91,37 @@ def load_file(filepath: str) -> pd.DataFrame:
         return pd.read_json(filepath)
     else:
         raise ValueError(f"Unsupported file format for {filepath}. Supported formats are: .csv, .xlsx, .xls, .pkl, .pickle, .json")
-    
-def gaussian_nll_loss(mu:torch.Tensor, log_sigma:torch.Tensor, target:torch.Tensor, regularization_weight:float=0.5)->torch.Tensor:
+
+
+def gaussian_nll_loss(mu:torch.Tensor, log_sigma:torch.Tensor, target:torch.Tensor)->torch.Tensor:
     sigma = torch.exp(log_sigma) + 1e-5  # Ensure sigma is not zero for numerical stability
     nll = 0.5 * torch.log(2 * torch.pi * (sigma ** 2)) + 0.5 * ((target - mu) ** 2) / (sigma ** 2) # also 0.5 * torch.log(2 * torch.pi) + 0.5 * log_sigma + 0.5 * ((target - mu) ** 2) / (sigma ** 2)  -- valid formulation
     # loss = nn.GaussianNLLLoss() might be pb mean over batch dimension
-    mse = F.mse_loss(mu, target) 
-    return nll.mean() + mse*regularization_weight
+    mse = F.mse_loss(mu, target) * 0.001
+    sigma_penalty = torch.relu(sigma - 1.0).mean() * 0.1
+    return nll.mean() + sigma_penalty + mse
+
+
+def gmm_nll_loss(mus:torch.Tensor, log_sigmas:torch.Tensor, pis:torch.Tensor, target:torch.Tensor)->torch.Tensor:
+    """Compute the negative log-likelihood loss for a Gaussian Mixture Model."""
+    batch_size, n_components, action_dim = mus.size()
+    target_expanded = target.unsqueeze(1).expand(-1, n_components, -1)  
+
+    sigmas = torch.exp(log_sigmas) + 1e-5  
+    normal_dist = dist.Normal(mus, sigmas)
+    log_probs = normal_dist.log_prob(target_expanded)  
+    log_probs_sum = log_probs.sum(dim=2)  
+
+    weighted_log_probs = log_probs_sum + torch.log(pis + 1e-8)  
+    log_sum_exp = torch.logsumexp(weighted_log_probs, dim=1)  
+
+    nll = -log_sum_exp.mean()  
+
+    mse = F.mse_loss((pis.unsqueeze(2) * mus).sum(dim=1), target) * 0.001  
+    sigma_penalty = torch.relu(sigmas - 1.0).mean() * 0.1  
+
+    return nll + sigma_penalty + mse
+
 
 def make_data_frame(data_dir:str) -> pd.DataFrame:
     csv_paths = []
@@ -144,3 +172,4 @@ class EarlyStopping:
         """Load the best model state"""
         if self.best_model_state is not None:
             model.load_state_dict(self.best_model_state)
+
