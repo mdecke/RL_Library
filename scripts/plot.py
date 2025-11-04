@@ -54,7 +54,7 @@ def apply_smoothing(stats_df: pd.DataFrame, window: int) -> pd.DataFrame:
     return sm
 
 
-def plot_returns(ax, stats_df: pd.DataFrame, smoothing_window: int):
+def plot_returns(ax, stats_df: pd.DataFrame, smoothing_window: int) -> None:
     x = np.arange(len(stats_df["mean"]))
     ax.plot(x, stats_df["mean"], label="mean return")
     ax.fill_between(x, stats_df["lower"], stats_df["upper"], alpha=0.15)
@@ -66,7 +66,7 @@ def plot_returns(ax, stats_df: pd.DataFrame, smoothing_window: int):
     ax.legend(loc="upper left", fontsize="x-small")
 
 
-def plot_series(ax, stats_df: pd.DataFrame, ylabel: str, title: str, label: str):
+def plot_series(ax, stats_df: pd.DataFrame, ylabel: str, title: str, label: str) -> None:
     x = np.arange(len(stats_df["mean"]))
     ax.plot(x, stats_df["mean"], label=label)
     ax.set_ylabel(ylabel)
@@ -76,7 +76,7 @@ def plot_series(ax, stats_df: pd.DataFrame, ylabel: str, title: str, label: str)
     ax.legend(loc="upper left", fontsize="x-small")
 
 
-def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim:int): 
+def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim:int) -> None: 
     max_plots_per_fig = 6
     num_figures = int(np.ceil(action_dim / max_plots_per_fig))
     figures = []
@@ -145,7 +145,6 @@ def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim
         figures.append(fig)
     
     return figures
-
 
 
 def main():
