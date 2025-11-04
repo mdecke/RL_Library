@@ -9,12 +9,16 @@ grad_clipping: 1.0
 early_stopping_patience: 15  # Increased from default 10 - give more room after LR reduction
 min_delta: 0.00001  # Tighter convergence criterion
 
+# Boundary data augmentation
+augment_boundaries: true        # Enable/disable boundary augmentation
+boundary_threshold: 0.8         # Consider |action| > 0.8 as boundary
+
 
 
 mle:
-  learning_rate: 0.001  # Increased from 0.0005 - faster initial learning
+  learning_rate: 0.005  # Increased from 0.0005 - faster initial learning
   batch_size: 512
-  hidden_sizes: [512, 512, 256]  # Deeper network for better capacity
+  hidden_sizes: [1024, 512, 512, 256]  # Deeper network for better capacity
   activation_fct: gelu
   n_epochs: 500
   dropout: 0.2
