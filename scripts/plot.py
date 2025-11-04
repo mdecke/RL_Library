@@ -146,6 +146,8 @@ def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim
     
     return figures
 
+
+
 def main():
     args = parse_args()
 
@@ -190,7 +192,6 @@ def main():
     
     plot_returns(axes[0], returns_stats, smoothing)
     axes[0].set_title(f"{title} - Mean Episodic Return")
-    
 
     plot_series(
         axes[1],
@@ -200,7 +201,6 @@ def main():
         label="policy loss",
     )
     
-    # Q/critic loss
     plot_series(
         axes[2],
         q_stats,
