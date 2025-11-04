@@ -150,6 +150,9 @@ class MLE(nn.Module):
         self.load_state_dict(torch.load(filepath))
         self.eval()
 
+    def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
+        return self.forward(inputs)[0]
+
 
 class GMM(nn.Module):
     def __init__(self, input_dim:int, output_dim:int, action_lim:float, num_components:int, hidden_dims:List[int], 
