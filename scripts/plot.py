@@ -75,41 +75,64 @@ def plot_series(ax, stats_df: pd.DataFrame, ylabel: str, title: str, label: str)
     ax.grid(True)
     ax.legend(loc="upper left", fontsize="x-small")
 
+def create_subplot_grid(n_plots, figsize_per_subplot=(5, 4)):
+    max_plots_per_fig = 6
+    n_figures = int(np.ceil(n_plots / max_plots_per_fig))
+    
+    figs = []
+    axes = []
+    
+    plot_idx = 0
+    
+    for _ in range(n_figures):
+        remaining_plots = n_plots - plot_idx
+        n_plots_this_fig = min(remaining_plots, max_plots_per_fig)
+
+        if n_plots_this_fig <= 3:
+            n_rows = n_plots_this_fig
+            n_cols = 1
+        else:
+            n_rows = 2
+            n_cols = 3
+
+        figsize = (figsize_per_subplot[0] * n_cols, 
+                   figsize_per_subplot[1] * n_rows)
+        fig, ax = plt.subplots(n_rows, n_cols, figsize=figsize)
+        
+        if n_plots_this_fig == 1:
+            ax = np.array([ax])
+        else:
+            ax = ax.flatten() if n_plots_this_fig > 1 else np.array([ax])
+        
+        for i in range(n_plots_this_fig, len(ax)):
+            ax[i].set_visible(False)
+        
+        figs.append(fig)
+        axes.append(ax[:n_plots_this_fig])
+        plot_idx += n_plots_this_fig
+    
+    return figs, axes
 
 def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim:int) -> None: 
-    max_plots_per_fig = 6
-    num_figures = int(np.ceil(action_dim / max_plots_per_fig))
-    figures = []
+    figs, axes_list = create_subplot_grid(action_dim, figsize_per_subplot=(6, 4))
+    action_idx = 0
     
-    for fig_idx in range(num_figures):
-        start_dim = fig_idx * max_plots_per_fig
-        end_dim = min(start_dim + max_plots_per_fig, action_dim)
-        num_plots = end_dim - start_dim
-        
-        if num_plots <= 3:
-            nrows = num_plots
-            ncols = 1
-        else:
-            ncols = 2
-            nrows = int(np.ceil(num_plots / 2))
-        
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, 
-                                figsize=(6*ncols, 4*nrows),
-                                squeeze=False)
-        
-        if num_figures > 1:
-            fig.suptitle(f'Action Predictions - Figure {fig_idx + 1}/{num_figures} '
+    for fig_idx, (fig, axes) in enumerate(zip(figs, axes_list)):
+        if len(figs) > 1:
+            start_dim = fig_idx * 6
+            end_dim = min(start_dim + len(axes), action_dim)
+            fig.suptitle(f'Action Predictions - Figure {fig_idx + 1}/{len(figs)} '
                         f'(Dimensions {start_dim}-{end_dim-1})',
                         fontsize=16, fontweight='bold', y=1.00)
         
-        axes_flat = axes.flatten()
-        
-        for plot_idx, action_idx in enumerate(range(start_dim, end_dim)):
-            ax = axes_flat[plot_idx]
+        # Plot each dimension in this figure
+        for ax in axes:
+            # Scatter plot of predictions vs true values
             ax.scatter(acts[:, action_idx], 
                       predictions[:, action_idx],
                       alpha=0.5, s=10, label='Predictions')
             
+            # Perfect prediction line (y = ŷ)
             min_val = min(acts[:, action_idx].min().item(), 
                          predictions[:, action_idx].min().item())
             max_val = max(acts[:, action_idx].max().item(),
@@ -117,34 +140,32 @@ def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim
             ax.plot([min_val, max_val], [min_val, max_val],
                    'r--', linewidth=2, label='y = ŷ')
             
+            # Labels and title
             ax.set_xlabel(f'True Action {action_idx}', fontsize=12)
             ax.set_ylabel(f'Predicted Action {action_idx}', fontsize=12)
             ax.set_title(f'Action Dimension {action_idx}', fontsize=14, fontweight='bold')
             ax.legend()
             ax.grid(True, alpha=0.3)
             
-            # Add R² score or MSE as text
+            # Calculate metrics
             mse = ((acts[:, action_idx] - predictions[:, action_idx])**2).mean().item()
-
-            # Calculate R² score
             ss_res = ((acts[:, action_idx] - predictions[:, action_idx])**2).sum().item()
             ss_tot = ((acts[:, action_idx] - acts[:, action_idx].mean())**2).sum().item()
             r2 = 1 - (ss_res / (ss_tot + 1e-8))
             
-            ax.text(0.05, 0.95, f'MSE: {mse:.4f}\nR²: {r2:.4f}', 
+            # Add metrics text box
+            ax.text(0.95, 0.95, f'MSE: {mse:.4f}\nR²: {r2:.4f}', 
                    transform=ax.transAxes,
                    verticalalignment='top',
                    horizontalalignment='right',
                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            
+            action_idx += 1
         
-        # Hide unused subplots
-        for plot_idx in range(num_plots, len(axes_flat)):
-            axes_flat[plot_idx].set_visible(False)
-        
+        plt.figure(fig.number)
         plt.tight_layout()
-        figures.append(fig)
     
-    return figures
+    return figs
 
 
 def main():
