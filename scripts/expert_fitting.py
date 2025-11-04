@@ -13,6 +13,70 @@ from base_classes.utils import load_config, make_data_frame
 from plot import plot_prediction_accuracy
 
 
+def augment_boundaries_combined(obss, acts, boundary_threshold=0.8):
+    """
+    Augment boundary samples with both exact duplicates and noisy variations.
+    
+    Best of all worlds:
+    1. Oversample boundary samples (exact duplicates)
+    2. Add noise to create variations
+    3. Keep all original data
+    
+    Args:
+        obss: Observations [N, obs_dim]
+        acts: Actions [N, action_dim]
+        boundary_threshold: Consider |action| > threshold as boundary (default: 0.8)
+    
+    Returns:
+        augmented_obss, augmented_acts (both with increased boundary representation)
+    """
+    # Find boundary samples (any action dimension near ±1)
+    is_boundary = (torch.abs(acts) > boundary_threshold).any(dim=-1)
+    
+    boundary_obss = obss[is_boundary]
+    boundary_acts = acts[is_boundary]
+    
+    n_boundary = len(boundary_obss)
+    print(f"\n[INFO] Boundary Augmentation:")
+    print(f"       Original dataset: {len(acts)} samples")
+    print(f"       Boundary samples (|action| > {boundary_threshold}): {n_boundary} ({100*n_boundary/len(acts):.1f}%)")
+    
+    augmented_obss_list = [obss]  # Original data
+    augmented_acts_list = [acts]
+    
+    # Strategy 1: Duplicate exact boundary samples (2x)
+    augmented_obss_list.append(boundary_obss)
+    augmented_acts_list.append(boundary_acts)
+    print(f"       + {n_boundary} exact duplicates")
+    
+    # Strategy 2: Add noisy variations (3 copies with small noise)
+    for i in range(3):
+        obs_noise = torch.randn_like(boundary_obss) * 0.02  # 2% noise on observations
+        act_noise = torch.randn_like(boundary_acts) * 0.01  # 1% noise on actions
+        
+        noisy_obss = boundary_obss + obs_noise
+        noisy_acts = torch.clamp(boundary_acts + act_noise, -1.0, 1.0)  # Keep in bounds
+        
+        augmented_obss_list.append(noisy_obss)
+        augmented_acts_list.append(noisy_acts)
+    
+    print(f"       + {n_boundary * 3} noisy variations")
+    
+    # Concatenate all augmented data
+    augmented_obss = torch.cat(augmented_obss_list, dim=0)
+    augmented_acts = torch.cat(augmented_acts_list, dim=0)
+    
+    # Shuffle to mix augmented samples throughout dataset
+    perm = torch.randperm(len(augmented_obss))
+    augmented_obss = augmented_obss[perm]
+    augmented_acts = augmented_acts[perm]
+    
+    print(f"       Augmented dataset: {len(augmented_obss)} samples")
+    print(f"       Boundary representation: {100*n_boundary/len(obss):.1f}% → {100*(n_boundary*5)/len(augmented_obss):.1f}%\n")
+    
+    return augmented_obss, augmented_acts
+
+
 parser = argparse.ArgumentParser(description="Fit an expert model to data.")
 parser.add_argument("--expert_type", type=str, choices=["mle","gmm","cnf"], default="mle", help="Type of expert model to fit")
 parser.add_argument("--expert_domain", type=str, choices=["time","frequency"], default="time", help="Domain in which to fit the expert model")
@@ -44,7 +108,15 @@ def main():
     cfg["obs_dim"] = obss_tensor.shape[1]
     cfg["action_dim"] = acts_tensor.shape[1]
 
-    index = np.arange(len(expert_data))
+    # Apply boundary augmentation if enabled in config
+    if cfg.get("augment_boundaries", False):
+        boundary_threshold = cfg.get("boundary_threshold", 0.8)
+        obss_tensor, acts_tensor = augment_boundaries_combined(
+            obss_tensor, acts_tensor, 
+            boundary_threshold=boundary_threshold
+        )
+
+    index = np.arange(len(obss_tensor))
     np.random.shuffle(index)
 
     test_idx = index[:int(cfg["test_split"] * len(index))]
