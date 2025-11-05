@@ -188,7 +188,6 @@ def plot_trajectories(data:np.ndarray, label:str) -> None:
             ax.set_xlabel('Env steps', fontsize=12)
             ax.set_ylabel(f'{label} {dim_idx}', fontsize=12)
             ax.set_title(f'{label} Dimension {dim_idx}', fontsize=14, fontweight='bold')
-            ax.legend()
             ax.grid(True, alpha=0.3)
 
             dim_idx += 1
