@@ -3,6 +3,7 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
 from base_classes.utils import get_activation
 
@@ -230,3 +231,29 @@ class GMM(nn.Module):
     def load(self, filepath:str)->None:
         self.load_state_dict(torch.load(filepath))
         self.eval()
+
+
+class CouplingConditioner(nn.Module):
+    def __init__(self, input_dim:int, hidden_dims:List[int], activation_fct:str, dropout:float=0.0):
+        super().__init__()
+
+        self.input_dim = input_dim
+        self.split_dim = input_dim // 2
+        self.dropout = dropout
+
+        layers = []
+        prev_dim = self.split_dim
+
+        for i, hidden_dim in enumerate(hidden_dims):
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(get_activation(activation_fct))
+
+            if i < len(hidden_dims) - 1:
+                layers.append(nn.Dropout(dropout))
+            
+            prev_dim = hidden_dim
+
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, input:torch.Tensor)->torch.Tensor:
+        return self.net(input)

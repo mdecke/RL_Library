@@ -4,7 +4,7 @@ import torch
 
 from tqdm import tqdm
 from skrl.resources.preprocessors.torch import RunningStandardScaler
-from base_classes.models import MLE, GMM #, CNF
+from base_classes.models import MLE, GMM, Transformer, Conditioner
 from base_classes.utils import (gaussian_nll_loss, init_model_weights, 
                                 print_model_summary, EarlyStopping,
                                 gmm_nll_loss)
@@ -273,3 +273,31 @@ class GMMExpert:
             torch.save(self.obs_preprocessor.state_dict(), experts_preprocessor_path)
             print(f"[INFO]: Expert observation preprocessor saved to {experts_preprocessor_path}")
 
+
+
+class CNFExpert:
+    def __init__(self, cfg:Dict):
+        self.nb_flows = cfg['cnf']['n_flows']
+        self.transformer_type = cfg['cnf']['transformer_type']
+        self.conditioner_type = cfg['cnf']['conditioner_type']
+        # Additional initialization as needed
+    
+    def normalizing(self, x):
+        #TODO: Implement normalizing flow logic here
+        pass
+
+    def flow(self, x):
+        #TODO: Implement flow logic here
+        pass
+
+    def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
+        #TODO: Implement training logic here
+        pass
+
+    def validate(self, val_data:torch.utils.data.DataLoader):
+        #TODO: Implement validation logic here
+        pass
+
+    def save(self, folder_path:str):
+        #TODO: Implement model saving logic here
+        pass
