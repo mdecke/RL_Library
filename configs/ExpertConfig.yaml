@@ -32,9 +32,10 @@ gmm:
   n_epochs: 500
   n_components: 5  # Number of Gaussian components in the mixture
   dropout: 0.2
-  weight_decay: 0.0002  # L2 regularization to prevent overf
+  weight_decay: 0.0002  # L2 regularization to prevent overfitting
 
-  
-
-
+cnf:
+  conditioner_type: coupling # Options: 'coupling', 'masked', 'recurrent'
+  transform_type: affine  # Options: 'affine', 'spline', 'combination', integration
+  n_layers: 6
   
