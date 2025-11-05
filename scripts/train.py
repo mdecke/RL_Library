@@ -153,10 +153,6 @@ def main():
 
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
-            if args.task == "Pendulum-v1":
-                obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
-            else:
-                obs, _ = env.reset(seed=args.seed)
         else:
             obs = obs_.copy()
     
