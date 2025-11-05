@@ -59,8 +59,11 @@ class Actor(nn.Module):
     def save(self, filepath:str)->None:
         torch.save(self.state_dict(), filepath)
     
-    def load(self, filepath:str)->None:
-        self.load_state_dict(torch.load(filepath))
+    def load(self, filepath:str, map_location=None)->None:
+        if map_location is None:
+            self.load_state_dict(torch.load(filepath))
+        else:
+            self.load_state_dict(torch.load(filepath, map_location=map_location))
         self.eval()
 
 
@@ -93,8 +96,11 @@ class Critic(nn.Module):
     def save(self, filepath:str)->None:
         torch.save(self.state_dict(), filepath)
 
-    def load(self, filepath:str)->None:
-        self.load_state_dict(torch.load(filepath))
+    def load(self, filepath:str, map_location=None)->None:
+        if map_location is None:
+            self.load_state_dict(torch.load(filepath))
+        else:
+            self.load_state_dict(torch.load(filepath, map_location=map_location))
         self.eval()
 
 
