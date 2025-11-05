@@ -139,7 +139,7 @@ def main():
                 })
             
             avg_return.append(torch.mean(cumulative_reward[env_idx,:].cpu()))
-            best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
+            # best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
             best_ending = avg_return[-1] 
             if best_ending >= BEST_SO_FAR:
                 BEST_SO_FAR = best_ending
