@@ -98,14 +98,15 @@ def main():
 
 
             if terminated.any() or truncated.any():
-                print(f"Episode lengths: {episode_lengths}")
-                print(f"Cumulative rewards: {cumulative_reward}")
-                if args.task == "Pendulum-v1":
-                    obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
-                else:
-                    obs, _ = env.reset()
-                cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
-                episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
+                env_reset_idx = np.where(terminated | truncated)[0]
+                if env_reset_idx.ndim == 0:
+                    env_reset_idx = np.array([env_reset_idx])
+                for idx in env_reset_idx:
+                    print(f"Episode length (env {idx}): {episode_lengths[idx]}")
+                    print(f"Cumulative reward (env {idx}): {cumulative_reward[idx]}")
+                    cumulative_reward[idx] = 0.0
+                    episode_lengths[idx] = 0
+                
 
     env.close()
 
