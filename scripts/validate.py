@@ -38,7 +38,7 @@ def main():
     
     config_file = os.path.join("configs", f"{args.algorithm}Config.yaml")
     general_cfg = load_config(config_file, args)
-
+    
     log_dir = os.path.join("logs", args.task, args.algorithm, "validation_stats")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
@@ -58,18 +58,23 @@ def main():
                    seed=args.seed).to(args.device)
 
     print("[INFO]: Loading trained model")
-    policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "best_policy.pth"))
-    policy.eval()
-    scaling = getattr(general_cfg["agent"], "preprocess_inputs", None)
+    policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "best_policy.pth"), 
+                map_location=args.device)
+    scaling = general_cfg["agent"].get("preprocess_inputs", None)
     if scaling is not None:
         print("[INFO]: Loading observation preprocessor scaler")
         scaler = load_scaler(size=obs_dim,
-                            scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth")).to(args.device)
-
+                            scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth"),
+                            device=args.device)
+        scaler.eval()
+    
     cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
     episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
 
-    obs, _ = env.reset(seed=args.seed)
+    if args.task == "Pendulum-v1":
+        obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
+    else:
+        obs, _ = env.reset(seed=args.seed)
     
     for t in range(args.max_iterations):
         with torch.no_grad():
@@ -95,7 +100,10 @@ def main():
             if terminated.any() or truncated.any():
                 print(f"Episode lengths: {episode_lengths}")
                 print(f"Cumulative rewards: {cumulative_reward}")
-                obs, _ = env.reset()
+                if args.task == "Pendulum-v1":
+                    obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
+                else:
+                    obs, _ = env.reset()
                 cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
                 episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
 
@@ -132,7 +140,10 @@ def main():
             name_prefix=f"seed_{args.seed}"
         )
         
-        obs, _ = env_render.reset(seed=args.seed)
+        if args.task == "Pendulum-v1":
+            obs, _ = env_render.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
+        else:
+            obs, _ = env_render.reset(seed=args.seed)
         
         print(f"[INFO]: Recording 1 episode for {args.video_steps} steps to {log_dir}")
         
@@ -140,14 +151,17 @@ def main():
             with torch.no_grad():
                 obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
                 if scaling is not None:
-                    normalized_obs = scaler(obs_tensor)
+                    normalized_obs = scaler(obs_tensor, train=False)
                 else:
                     normalized_obs = obs_tensor
                 action = policy(normalized_obs)
                 action_np = action.cpu().numpy()
                 obs, reward, terminated, _, _ = env_render.step(action_np)
                 if terminated:
-                    obs, _ = env_render.reset()
+                    if args.task == "Pendulum-v1":
+                        obs, _ = env_render.reset(options={'x_init': np.pi, 'y_init': 8.0})
+                    else:
+                        obs, _ = env_render.reset()
         env_render.close()
         print(f"[INFO]: Video saved to {log_dir}")
 
