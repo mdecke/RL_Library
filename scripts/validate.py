@@ -7,11 +7,13 @@ import gymnasium as gym
 from gymnasium.wrappers import RecordVideo
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import torch
 
 from base_classes.models import Actor
 from base_classes.utils import load_config, load_scaler
+from scripts.plot import plot_trajectories
 
 
 parser = argparse.ArgumentParser(description='Train or test TD3 agent on a given environment')
@@ -148,8 +150,22 @@ def main():
                     obs, _ = env_render.reset()
         env_render.close()
         print(f"[INFO]: Video saved to {log_dir}")
-    
+
     if args.plot:
+        print("\n[INFO]: Generating trajectory plots...")
+        data_array = acts_array.reshape(args.num_envs, -1, action_dim)
+        plots_dir = os.path.join("plots", args.task, args.algorithm)
+        if not os.path.exists(plots_dir):
+            os.makedirs(plots_dir, exist_ok=True)
+        for env_idx in range(args.num_envs):
+            figures = plot_trajectories(data_array[env_idx, :, :], "Action")
+
+        for fig_idx, fig in enumerate(figures):
+            filename = f"action_predictions_fig{fig_idx+1}.png" if len(figures) > 1 else "action_predictions.png"
+            fig.savefig(os.path.join(plots_dir, filename), dpi=300, bbox_inches='tight')
+            print(f"[INFO] Saved {filename}")
+
+        plt.show()  # Show all figures
 
         
 
