@@ -167,6 +167,37 @@ def plot_prediction_accuracy(acts:np.ndarray, predictions:np.ndarray, action_dim
     
     return figs
 
+def plot_trajectories(data:np.ndarray, label:str) -> None:
+    data_dim = data.shape[1]
+    figs, axes_list = create_subplot_grid(data_dim, figsize_per_subplot=(6, 4))
+
+    dim_idx = 0
+
+    for fig_idx, (fig, axes) in enumerate(zip(figs, axes_list)):
+        if len(figs) > 1:
+            start_dim = fig_idx * 6
+            end_dim = min(start_dim + len(axes), data_dim)
+            fig.suptitle(f'{label} RollOut - Figure {fig_idx + 1}/{len(figs)} '
+                        f'(Dimensions {start_dim}-{end_dim-1})',
+                        fontsize=16, fontweight='bold', y=1.00)
+        
+        # Plot each dimension in this figure
+        for ax in axes:
+            ax.plot(data[:, dim_idx], alpha=0.7)
+
+            ax.set_xlabel('Env steps', fontsize=12)
+            ax.set_ylabel(f'{label} {dim_idx}', fontsize=12)
+            ax.set_title(f'{label} Dimension {dim_idx}', fontsize=14, fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            dim_idx += 1
+
+        plt.figure(fig.number)
+        plt.tight_layout()
+    
+    return figs
+
 
 def main():
     args = parse_args()
