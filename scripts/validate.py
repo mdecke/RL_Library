@@ -24,6 +24,7 @@ parser.add_argument('--device', type=str, default='cpu', help='Device to use for
 parser.add_argument('--video', action='store_true', help='Record video of the trained policy')
 parser.add_argument('--video_steps', type=int, default=500, help='Number of steps to record in video')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+parser.add_argument('--plot', action='store_true', help='Plot the trajectories of the agent')
 
 args = parser.parse_args()
 
@@ -72,7 +73,7 @@ def main():
         with torch.no_grad():
             obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
             if scaling is not None:
-                normalized_obs = scaler(obs_tensor)
+                normalized_obs = scaler(obs_tensor, train=False)
             else:
                 normalized_obs = obs_tensor
             action = policy(normalized_obs)
@@ -147,6 +148,10 @@ def main():
                     obs, _ = env_render.reset()
         env_render.close()
         print(f"[INFO]: Video saved to {log_dir}")
+    
+    if args.plot:
+
+        
 
 if __name__ == "__main__":
     main()
