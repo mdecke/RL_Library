@@ -142,7 +142,7 @@ class MLEExpert:
             print(f"[INFO]: Expert observation preprocessor saved to {experts_preprocessor_path}")
 
 
-class GMM_MLEExpert:
+class GMMExpert:
     def __init__(self, cfg:Dict):
         self.obs_dim = cfg['obs_dim']
         self.action_dim = cfg['action_dim']
