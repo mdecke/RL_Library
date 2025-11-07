@@ -125,11 +125,11 @@ def main():
     test_loss = expert.validate(test_loader)
     expert.save(args.path_to_saved_expert)
 
-    expert.model.eval()
+    expert.eval()
     with torch.no_grad():
         if expert.preprocess_inputs:
             test_obss = expert.obs_preprocessor(test_obss).to(args.device)
-        predicted_actions = expert.most_likely_component(test_obss) #expert.model.most_likely_component(test_obss)
+        predicted_actions = expert.most_likely_component(test_obss)
     
     plots_dir = os.path.join(args.path_to_figures, args.expert_type)
     if not os.path.exists(plots_dir):
