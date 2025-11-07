@@ -3,7 +3,7 @@ from typing import Dict
 from .DDPG_agent import DdpgAgent
 from .TD_agent import TdAgent
 # from .SAC_agent import SACAgent
-from .Expert import MLEExpert, GMMExpert
+from .Expert import MLEExpert, GMMExpert, CNFExpert
 
 AGENTS = {
     # "sac": SACAgent,
@@ -14,7 +14,7 @@ AGENTS = {
 EXPERTS = {
     "mle": MLEExpert,  # Placeholder, actual class defined in expert.py
     "gmm": GMMExpert,
-    # "cnf": "CNFExpert",  # Placeholder for future implementation
+    "cnf": CNFExpert, 
 }
 
 def create_agent(env, algo_type:str, cfg:Dict):
