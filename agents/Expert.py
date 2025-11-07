@@ -132,6 +132,8 @@ class MLEExpert:
         avg_val_loss = val_loss / len(val_data)
         return avg_val_loss
     
+    def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
+        return self.model.forward(inputs)[0]
     
     def save(self, folder_path:str):
         model_path = os.path.join(folder_path, "mle_expert.pth")
@@ -264,6 +266,14 @@ class GMMExpert:
         
         avg_val_loss = val_loss / len(val_data)
         return avg_val_loss
+    
+    def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
+        mu, _, pi = self.model.forward(inputs)
+        batch_size = inputs.size(0)
+        _, component_indices = torch.max(pi, dim=-1)
+
+        most_likely_means = mu[torch.arange(batch_size), component_indices]
+        return most_likely_means
     
     def save(self, folder_path:str):
         model_path = os.path.join(folder_path, "gmm_expert.pth")

@@ -160,8 +160,6 @@ class MLE(nn.Module):
         self.load_state_dict(torch.load(filepath))
         self.eval()
 
-    def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
-        return self.forward(inputs)[0]
 
 
 class GMM(nn.Module):
@@ -222,15 +220,6 @@ class GMM(nn.Module):
         sampled_actions = torch.normal(means, stds, generator=generator)
 
         return sampled_actions
-    
-    def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
-        mu, _, pi = self.forward(inputs)
-        batch_size = inputs.size(0)
-        _, component_indices = torch.max(pi, dim=-1)
-
-        most_likely_means = mu[torch.arange(batch_size), component_indices]
-        return most_likely_means
-    
 
     def save(self, filepath:str)->None:
         torch.save(self.state_dict(), filepath)
