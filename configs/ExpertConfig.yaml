@@ -47,3 +47,11 @@ cnf:
   n_epochs: 500
   dropout: 0.02
   
+  # Conditional base distribution (MLE)
+  use_conditional_base: true  # If true, uses MLE to learn obs->base_dist mapping
+  base_hidden_sizes: [256, 256]
+  base_learning_rate: 0.001
+  base_activation_fct: gelu
+  base_dropout: 0.1
+  base_weight_decay: 0.0001
+  
