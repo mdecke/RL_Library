@@ -35,7 +35,15 @@ gmm:
   weight_decay: 0.0002  # L2 regularization to prevent overfitting
 
 cnf:
+  learning_rate: 0.001
+  batch_size: 512
   conditioner_type: coupling # Options: 'coupling', 'masked', 'recurrent'
+  conditionner_hidden_sizes: [128, 128, 64]
+  conditioner_activation_fct: relu
   transform_type: affine  # Options: 'affine', 'spline', 'combination', integration
+  transformer_hidden_dim: [128, 64]
+  transformer_activation_fct: relu
   n_layers: 6
+  n_epochs: 500
+  dropout: 0.02
   
