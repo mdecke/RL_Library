@@ -233,27 +233,67 @@ class GMM(nn.Module):
         self.eval()
 
 
-class CouplingConditioner(nn.Module):
-    def __init__(self, input_dim:int, hidden_dims:List[int], activation_fct:str, dropout:float=0.0):
+class AffineCouplingConditioner(nn.Module):
+    def __init__(self, dim_split:int, output_dim:int, hidden_dims:List[int], lr:float, activation_fct:str, dropout:float=0.02):
         super().__init__()
 
-        self.input_dim = input_dim
-        self.split_dim = input_dim // 2
-        self.dropout = dropout
+        self.input_dim = dim_split # split_idx 0 to split_idx
+        self.output_dim = output_dim  # split_idx to end: D-split_idx usually floor(D/2)
+        self.lr = lr
 
         layers = []
-        prev_dim = self.split_dim
+        prev_dim = self.input_dim
 
         for i, hidden_dim in enumerate(hidden_dims):
             layers.append(nn.Linear(prev_dim, hidden_dim))
             layers.append(get_activation(activation_fct))
-
+        
             if i < len(hidden_dims) - 1:
-                layers.append(nn.Dropout(dropout))
-            
+                    layers.append(nn.Dropout(dropout))
+                
             prev_dim = hidden_dim
 
         self.net = nn.Sequential(*layers)
+        self.translation_head = nn.Linear(prev_dim, self.output_dim)
+        self.log_scale_head = nn.Linear(prev_dim, self.output_dim)
 
-    def forward(self, input:torch.Tensor)->torch.Tensor:
-        return self.net(input)
+    def forward(self, z_split_lower: torch.Tensor) -> torch.Tensor:
+        logits = self.net(z_split_lower)
+        t = self.translation_head(logits)
+        s = self.log_scale_head(logits)
+        return s, t
+    
+    
+class AffineTrasformer(nn.Module):
+    def __init__(self, mask:torch.Tensor, dim_split:int, conditioner:nn.Module):
+        super().__init__()
+
+        self.split_dim = dim_split
+        self.conditioner = conditioner
+        self.register_buffer('mask', mask)
+    
+    def forward(self, z:torch.Tensor)->torch.Tensor:
+        z_split_lower = z[:, :self.split_dim]
+        z_split_upper = z[:, self.split_dim:]
+
+        s, t = self.conditioner.forward(z_split_lower)
+
+        z_prime_upper = z_split_upper * torch.exp(s) + t
+        z_prime = torch.cat([z_split_lower, z_prime_upper], dim=1)
+
+        log_det_jacobian = torch.sum(s, dim=1)
+        
+        return z_prime, log_det_jacobian
+
+    def inverse(self, z_prime:torch.Tensor)->torch.Tensor:
+        z_prime_split_lower = z_prime[:, :self.split_dim]
+        z_prime_split_upper = z_prime[:, self.split_dim:]
+
+        s, t = self.conditioner.forward(z_prime_split_lower)
+
+        z_upper = (z_prime_split_upper - t) * torch.exp(-s)
+        z = torch.cat([z_prime_split_lower, z_upper], dim=1)
+
+        log_det_jacobian = -torch.sum(s, dim=1)
+
+        return z, log_det_jacobian
