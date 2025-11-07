@@ -135,6 +135,17 @@ class MLEExpert:
     def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
         return self.model.forward(inputs)[0]
     
+    def sample(self, inputs:torch.Tensor, generator:torch.Generator=None)->torch.Tensor:
+        if self.preprocess_inputs:
+            inputs = self.obs_preprocessor(inputs).to(self.device)
+        else:
+            inputs = inputs.to(self.device)
+        mu, log_sigma = self.model.forward(inputs)
+        sigma = torch.exp(log_sigma)
+        normal_dist = torch.distributions.Normal(mu, sigma)
+        sampled_actions = normal_dist.sample(generator=generator)
+        return sampled_actions
+    
     def eval(self):
         self.model.eval()
     
@@ -286,6 +297,22 @@ class GMMExpert:
 
         most_likely_means = mu[torch.arange(batch_size), component_indices]
         return most_likely_means
+    
+    def sample(self, inputs:torch.Tensor, generator:torch.Generator=None)->torch.Tensor:
+        if self.preprocess_inputs:
+            inputs = self.obs_preprocessor(inputs).to(self.device)
+        else:
+            inputs = inputs.to(self.device)
+        mu, log_sigma, pi = self.model.forward(inputs)
+        batch_size = inputs.size(0)
+        categorical = torch.distributions.Categorical(pi)
+        component_indices = categorical.sample(generator=generator)
+
+        means = mu[torch.arange(batch_size), component_indices]
+        sigmas = torch.exp(log_sigma[torch.arange(batch_size), component_indices])
+        normal_dist = torch.distributions.Normal(means, sigmas)
+        sampled_actions = normal_dist.sample(generator=generator)
+        return sampled_actions
     
     def eval(self):
         self.model.eval()
