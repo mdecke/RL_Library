@@ -135,6 +135,9 @@ class MLEExpert:
     def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
         return self.model.forward(inputs)[0]
     
+    def eval(self):
+        self.model.eval()
+    
     def save(self, folder_path:str):
         model_path = os.path.join(folder_path, "mle_expert.pth")
         torch.save(self.model.state_dict(), model_path)
@@ -143,6 +146,15 @@ class MLEExpert:
             experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
             torch.save(self.obs_preprocessor.state_dict(), experts_preprocessor_path)
             print(f"[INFO]: Expert observation preprocessor saved to {experts_preprocessor_path}")
+    
+    def load(self, folder_path:str):
+        model_path = os.path.join(folder_path, "mle_expert.pth")
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        print(f"[INFO]: MLE Expert model loaded from {model_path}")
+        if self.preprocess_inputs:
+            experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
+            self.obs_preprocessor.load_state_dict(torch.load(experts_preprocessor_path, map_location=self.device))
+            print(f"[INFO]: Expert observation preprocessor loaded from {experts_preprocessor_path}")
 
 
 class GMMExpert:
@@ -275,6 +287,9 @@ class GMMExpert:
         most_likely_means = mu[torch.arange(batch_size), component_indices]
         return most_likely_means
     
+    def eval(self):
+        self.model.eval()
+    
     def save(self, folder_path:str):
         model_path = os.path.join(folder_path, "gmm_expert.pth")
         torch.save(self.model.state_dict(), model_path)
@@ -283,6 +298,15 @@ class GMMExpert:
             experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
             torch.save(self.obs_preprocessor.state_dict(), experts_preprocessor_path)
             print(f"[INFO]: Expert observation preprocessor saved to {experts_preprocessor_path}")
+    
+    def load(self, folder_path:str):
+        model_path = os.path.join(folder_path, "gmm_expert.pth")
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        print(f"[INFO]: GMM MLE Expert model loaded from {model_path}")
+        if self.preprocess_inputs:
+            experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
+            self.obs_preprocessor.load_state_dict(torch.load(experts_preprocessor_path, map_location=self.device))
+            print(f"[INFO]: Expert observation preprocessor loaded from {experts_preprocessor_path}")
 
 
 
@@ -371,8 +395,13 @@ class CNFExpert:
         
         for conditioner in self.conditioners:
             init_model_weights(conditioner['net'])
-            init_model_weights(conditioner['s_head'])
             init_model_weights(conditioner['t_head'])
+            
+            # Initialize scale head to output near-zero values (small transformations initially)
+            nn.init.zeros_(conditioner['s_head'].weight)
+            nn.init.zeros_(conditioner['s_head'].bias)
+        
+        print(f"[INFO]: Initialized {self.num_layers} flow layers with near-identity transformations")
         
         # Optimizer includes both flow and base model parameters if conditional
         if self.use_conditional_base:
@@ -398,10 +427,12 @@ class CNFExpert:
         z_lower = z[:, :self.split_dim]
         z_upper = z[:, self.split_dim:]
         
-        z_prime_upper = z_upper * torch.exp(s) + t
+        s_clamped = torch.clamp(s, min=-10.0, max=10.0)
+        
+        z_prime_upper = z_upper * torch.exp(s_clamped) + t
         z_prime = torch.cat([z_lower, z_prime_upper], dim=1)
         
-        log_det = s.sum(dim=1)
+        log_det = s_clamped.sum(dim=1)
         
         return z_prime, log_det
     
@@ -409,10 +440,13 @@ class CNFExpert:
         z_prime_lower = z_prime[:, :self.split_dim]
         z_prime_upper = z_prime[:, self.split_dim:]
         
-        z_upper = (z_prime_upper - t) * torch.exp(-s)
+        # Clamp s to prevent numerical overflow in exp(-s)
+        s_clamped = torch.clamp(s, min=-10.0, max=10.0)
+        
+        z_upper = (z_prime_upper - t) * torch.exp(-s_clamped)
         z = torch.cat([z_prime_lower, z_upper], dim=1)
         
-        log_det = -s.sum(dim=1)
+        log_det = -s_clamped.sum(dim=1)
         
         return z, log_det
     
@@ -464,11 +498,19 @@ class CNFExpert:
     def _compute_log_prob(self, x: torch.Tensor, mu: torch.Tensor, log_sigma: torch.Tensor) -> torch.Tensor:
         z, log_det = self._flow_inverse(x)
         
-        sigma = torch.exp(log_sigma) + 1e-5
-        log_prob_z = -0.5 * torch.log(2 * torch.pi * sigma**2) - 0.5 * ((z - mu)**2 / sigma**2)
+        # Clamp log_sigma to prevent numerical issues
+        log_sigma_clamped = torch.clamp(log_sigma, min=-10.0, max=2.0)
+        sigma = torch.exp(log_sigma_clamped) + 1e-5
+        
+        # Compute log prob under Gaussian base distribution with numerical stability
+        log_2pi = torch.log(torch.tensor(2 * torch.pi, device=x.device))
+        log_prob_z = -0.5 * (log_2pi + 2 * log_sigma_clamped + ((z - mu)**2) / (sigma**2))
         log_prob_z = log_prob_z.sum(dim=-1)
         
-        return log_prob_z + log_det
+        # Clamp log_det to prevent extreme values
+        log_det_clamped = torch.clamp(log_det, min=-1e3, max=1e3)
+        
+        return log_prob_z + log_det_clamped
     
     def _sample_from_flow(self, mu: torch.Tensor, log_sigma: torch.Tensor) -> torch.Tensor:
         sigma = torch.exp(log_sigma) + 1e-5
@@ -477,6 +519,51 @@ class CNFExpert:
         x, _ = self._flow_forward(z)
         
         return x
+    
+    def _compute_regularized_nll(self, acts: torch.Tensor, mu: torch.Tensor, log_sigma: torch.Tensor) -> torch.Tensor:
+        log_prob = self._compute_log_prob(acts, mu, log_sigma)
+        
+        # Check for NaN/inf in log_prob
+        if torch.isnan(log_prob).any() or torch.isinf(log_prob).any():
+            print("[WARNING] NaN/Inf detected in log_prob")
+            return torch.tensor(1e3, device=acts.device, dtype=acts.dtype, requires_grad=True)
+        
+        nll = -log_prob.mean()
+        
+        # Get predicted action (mode of the distribution) - detach to avoid backprop through flow twice
+        with torch.no_grad():
+            mode = mu.detach().clamp(min=-10.0, max=10.0)  # Clamp mode to reasonable range
+            predicted_acts, _ = self._flow_forward(mode)
+            
+            # Clamp predicted actions to prevent extreme values
+            predicted_acts = predicted_acts.clamp(min=-100.0, max=100.0)
+            
+            # Check if predicted_acts contains NaN or Inf
+            if torch.isnan(predicted_acts).any() or torch.isinf(predicted_acts).any():
+                print("[WARNING] NaN/Inf in predicted_acts, skipping MSE penalty")
+                mse_penalty = torch.tensor(0.0, device=acts.device, dtype=acts.dtype)
+            else:
+                # MSE penalty: encourages the mode to match the target
+                mse_raw = torch.nn.functional.mse_loss(predicted_acts, acts, reduction='mean')
+                # Clamp MSE to prevent it from dominating the loss
+                mse_penalty = torch.clamp(mse_raw, max=1e3) * 0.001
+        
+        # Sigma penalty: prevents base distribution variance from collapsing
+        log_sigma_clamped = log_sigma.clamp(min=-10.0, max=2.0)
+        sigma = torch.exp(log_sigma_clamped) + 1e-5
+        sigma_penalty = torch.relu(sigma - 1.0).mean() * 0.1
+        
+        # Total loss with safety check
+        total_loss = nll + mse_penalty + sigma_penalty
+        
+        # Final safety check
+        if torch.isnan(total_loss) or torch.isinf(total_loss):
+            print(f"[WARNING] NaN/Inf in total loss - nll: {nll.item() if not torch.isnan(nll) else 'NaN'}, "
+                  f"mse: {mse_penalty.item() if not torch.isnan(mse_penalty) else 'NaN'}, "
+                  f"sigma: {sigma_penalty.item() if not torch.isnan(sigma_penalty) else 'NaN'}")
+            return torch.tensor(1e3, device=acts.device, dtype=acts.dtype, requires_grad=True)
+        
+        return total_loss
     
     def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
         if self.use_conditional_base:
@@ -509,11 +596,37 @@ class CNFExpert:
                     mu = torch.zeros_like(acts)
                     log_sigma = torch.zeros_like(acts)
                 
-                # Compute negative log-likelihood
-                log_prob = self._compute_log_prob(acts, mu, log_sigma) #TODO: check if better with regularization nll from utils.
-                batch_loss = -log_prob.mean()
+                # Compute regularized negative log-likelihood
+                batch_loss = self._compute_regularized_nll(acts, mu, log_sigma)
+                
+                # Skip batch if loss is NaN or Inf
+                if torch.isnan(batch_loss) or torch.isinf(batch_loss):
+                    print(f"[WARNING] Skipping batch due to NaN/Inf loss")
+                    continue
                 
                 batch_loss.backward()
+                
+                # Check for NaN gradients
+                has_nan_grad = False
+                if self.use_conditional_base:
+                    for param in self.base_model.parameters():
+                        if param.grad is not None and (torch.isnan(param.grad).any() or torch.isinf(param.grad).any()):
+                            has_nan_grad = True
+                            break
+                
+                if not has_nan_grad:
+                    for conditioner in self.conditioners:
+                        for param in conditioner.parameters():
+                            if param.grad is not None and (torch.isnan(param.grad).any() or torch.isinf(param.grad).any()):
+                                has_nan_grad = True
+                                break
+                        if has_nan_grad:
+                            break
+                
+                if has_nan_grad:
+                    print("[WARNING] NaN gradient detected, skipping optimizer step")
+                    self.optimizer.zero_grad()
+                    continue
                 
                 if self.grad_clipping is not None:
                     if self.use_conditional_base:
@@ -581,9 +694,8 @@ class CNFExpert:
                     mu = torch.zeros_like(acts)
                     log_sigma = torch.zeros_like(acts)
                 
-                # Compute negative log-likelihood TODO: match with loss function in train
-                log_prob = self._compute_log_prob(acts, mu, log_sigma)
-                batch_loss = -log_prob.mean()
+                # Compute regularized negative log-likelihood
+                batch_loss = self._compute_regularized_nll(acts, mu, log_sigma)
                 val_loss += batch_loss.item()
         
         avg_val_loss = val_loss / len(val_data)
@@ -649,6 +761,12 @@ class CNFExpert:
             transformed_mode, _ = self._flow_forward(mode)
         return transformed_mode
     
+    def eval(self):
+        if self.use_conditional_base:
+            self.base_model.eval()
+        for conditioner in self.conditioners:
+            conditioner.eval()
+    
     def save(self, folder_path:str):
         conditioners_state = [conditioner.state_dict() for conditioner in self.conditioners]
         model_path = os.path.join(folder_path, "cnf_expert.pth")
@@ -668,3 +786,25 @@ class CNFExpert:
             experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
             torch.save(self.obs_preprocessor.state_dict(), experts_preprocessor_path)
             print(f"[INFO]: Expert observation preprocessor saved to {experts_preprocessor_path}")
+
+    def load(self, folder_path:str):
+        model_path = os.path.join(folder_path, "cnf_expert.pth")
+        checkpoint = torch.load(model_path, map_location=self.device)
+        conditioners_state = checkpoint['conditioners']
+        self.split_dim = checkpoint['split_dim']
+        self.num_layers = checkpoint['num_layers']
+        
+        for i, conditioner in enumerate(self.conditioners):
+            conditioner.load_state_dict(conditioners_state[i])
+        
+        print(f"[INFO]: CNF Expert flow model loaded from {model_path}")
+        
+        if self.use_conditional_base:
+            base_model_path = os.path.join(folder_path, "cnf_base_model.pth")
+            self.base_model.load_state_dict(torch.load(base_model_path, map_location=self.device))
+            print(f"[INFO]: CNF Base model loaded from {base_model_path}")
+        
+        if self.preprocess_inputs:
+            experts_preprocessor_path = os.path.join(folder_path, "obs_preprocessor.pth")
+            self.obs_preprocessor.load_state_dict(torch.load(experts_preprocessor_path, map_location=self.device))
+            print(f"[INFO]: Expert observation preprocessor loaded from {experts_preprocessor_path}")
