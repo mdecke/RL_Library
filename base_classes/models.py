@@ -265,18 +265,14 @@ class AffineCouplingConditioner(nn.Module):
     
     
 class AffineTrasformer(nn.Module):
-    def __init__(self, mask:torch.Tensor, dim_split:int, conditioner:nn.Module):
+    def __init__(self, dim_split:int):
         super().__init__()
 
         self.split_dim = dim_split
-        self.conditioner = conditioner
-        self.register_buffer('mask', mask)
     
-    def forward(self, z:torch.Tensor)->torch.Tensor:
+    def forward(self, z:torch.Tensor, s:torch.Tensor, t:torch.Tensor)->torch.Tensor:
         z_split_lower = z[:, :self.split_dim]
         z_split_upper = z[:, self.split_dim:]
-
-        s, t = self.conditioner.forward(z_split_lower)
 
         z_prime_upper = z_split_upper * torch.exp(s) + t
         z_prime = torch.cat([z_split_lower, z_prime_upper], dim=1)
@@ -285,11 +281,9 @@ class AffineTrasformer(nn.Module):
         
         return z_prime, log_det_jacobian
 
-    def inverse(self, z_prime:torch.Tensor)->torch.Tensor:
+    def inverse(self, z_prime:torch.Tensor, s:torch.Tensor, t:torch.Tensor)->torch.Tensor:
         z_prime_split_lower = z_prime[:, :self.split_dim]
         z_prime_split_upper = z_prime[:, self.split_dim:]
-
-        s, t = self.conditioner.forward(z_prime_split_lower)
 
         z_upper = (z_prime_split_upper - t) * torch.exp(-s)
         z = torch.cat([z_prime_split_lower, z_upper], dim=1)
