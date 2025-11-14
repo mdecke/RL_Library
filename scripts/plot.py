@@ -197,6 +197,37 @@ def plot_trajectories(data:np.ndarray, label:str) -> None:
     
     return figs
 
+def plot_action_predictions(true_actions, predicted_actions, action_dim=8, plots_dir=None):
+    """Plot true vs predicted actions for each dimension."""
+    n_cols = 4
+    n_rows = (action_dim + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 3*n_rows))
+    axes = axes.flatten()
+    
+    for i in range(action_dim):
+        ax = axes[i]
+        steps = np.arange(len(true_actions))
+        ax.plot(steps, true_actions[:, i], label='True', alpha=0.7, linewidth=1)
+        ax.plot(steps, predicted_actions[:, i], label='Predicted', alpha=0.7, linewidth=1)
+        ax.set_title(f'Action dim {i}')
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Action value')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    for i in range(action_dim, len(axes)):
+        axes[i].axis('off')
+    
+    plt.suptitle('One-step Action Predictions (Flow conditioned on state)')
+    plt.tight_layout()
+    if plots_dir:
+        import os
+        save_path = os.path.join(plots_dir, 'action_predictions.png')
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    plt.show()
+
 
 def main():
     args = parse_args()
