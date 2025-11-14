@@ -121,6 +121,11 @@ def main():
 
     
     expert = create_expert(args.expert_type, cfg)
+    
+    if expert.preprocess_inputs:
+        with torch.no_grad():
+            expert.fit_obs_preprocessor(train_obss)
+    
     train_losses, val_losses = expert.train(train_loader, val_loader)
     test_loss = expert.validate(test_loader)
     expert.save(args.path_to_saved_expert)
