@@ -110,10 +110,16 @@ def main():
 
     env.close()
 
-    obss_array = np.vstack(trajs["obss"]) 
-    acts_array = np.vstack(trajs["acts"]) 
-    rews_array = np.concatenate(trajs["rews"])
-    terms_array = np.concatenate(trajs["terms"])
+    obss_stacked = np.array(trajs["obss"])  # Shape: (num_timesteps, num_envs, obs_dim)
+    acts_stacked = np.array(trajs["acts"])  # Shape: (num_timesteps, num_envs, action_dim)
+    rews_stacked = np.array(trajs["rews"])  # Shape: (num_timesteps, num_envs)
+    terms_stacked = np.array(trajs["terms"]) # Shape: (num_timesteps, num_envs)
+    
+    # Transpose to (num_envs, num_timesteps, dim) then reshape to (num_envs * num_timesteps, dim)
+    obss_array = np.transpose(obss_stacked, (1, 0, 2)).reshape(-1, obss_stacked.shape[2])
+    acts_array = np.transpose(acts_stacked, (1, 0, 2)).reshape(-1, acts_stacked.shape[2])
+    rews_array = np.transpose(rews_stacked, (1, 0)).reshape(-1)
+    terms_array = np.transpose(terms_stacked, (1, 0)).reshape(-1)
     
     data_dict = {}
     
