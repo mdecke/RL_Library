@@ -29,7 +29,6 @@ args = parser.parse_args()
 
 def main():
     
-    # Set random seeds for reproducibility (exploration noise sampling --> line 90)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     
@@ -69,6 +68,7 @@ def main():
     
     # Tracking for tensorboard
     total_episodes = 0
+    update_starts = warm_up // args.num_envs
 
     if args.task == "Pendulum-v1":
         obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
@@ -106,7 +106,7 @@ def main():
             agent.memory.add_sample(obs=obs_tensor, actions=clipped_action, next_obs=next_obs_tensor, rewards=reward_tensor, done=terminated_tensor)
 
         
-        if (t >= warm_up) and (agent.memory.filled_lines >= general_cfg['memory']['batch_size']):
+        if (t >= update_starts) and (agent.memory.filled_lines >= general_cfg['memory']['batch_size']):
             agent.update()
             
             # Log training metrics to TensorBoard
