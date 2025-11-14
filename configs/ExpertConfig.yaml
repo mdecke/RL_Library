@@ -10,7 +10,7 @@ early_stopping_patience: 15  # Increased from default 10 - give more room after 
 min_delta: 0.00001  # Tighter convergence criterion
 
 # Boundary data augmentation
-augment_boundaries: true        # Enable/disable boundary augmentation
+augment_boundaries: false        # Enable/disable boundary augmentation
 boundary_threshold: 0.8         # Consider |action| > 0.8 as boundary
 
 
@@ -36,12 +36,12 @@ gmm:
 
 cnf:
   learning_rate: 0.001
-  batch_size: 512
+  batch_size: 256
   conditioner_type: coupling # Options: 'coupling', 'masked', 'recurrent'
-  conditionner_hidden_sizes: [128, 128, 64]
+  conditionner_hidden_sizes: [256, 256]
   conditioner_activation_fct: relu
   transform_type: affine  # Options: 'affine', 'spline', 'combination', integration
-  transformer_hidden_dim: [128, 64]
+  transformer_hidden_dim: [256, 256]
   transformer_activation_fct: relu
   n_layers: 6
   n_epochs: 500
