@@ -227,3 +227,62 @@ class GMM(nn.Module):
     def load(self, filepath:str)->None:
         self.load_state_dict(torch.load(filepath))
         self.eval()
+
+class MLP(nn.Module):
+    def __init__(self, in_dim, hidden_dims, out_dim):
+        super().__init__()
+        layers = []
+        prev = in_dim
+        for h in hidden_dims:
+            layers.append(nn.Linear(prev, h))
+            layers.append(nn.ReLU())
+            prev = h
+        layers.append(nn.Linear(prev, out_dim))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+class AffineCoupling(nn.Module):
+    def __init__(self, action_dim, state_dim, hidden_dims, mask):
+        super().__init__()
+        self.action_dim = action_dim
+        self.state_dim = state_dim
+        self.mask = mask
+        
+        cond_in = int(mask.sum().item())
+        cond_out = action_dim - cond_in
+        # conditioner maps (masked action features + full state) -> transformer params (scale and translate)
+        self.conditioner = MLP(cond_in + state_dim, hidden_dims, cond_out * 2)
+
+    def forward(self, x, state):
+        # x: (batch_size, action_dim), state: (batch_size, state_dim)
+        x_masked_feats = x[:, self.mask.bool()]
+        h = torch.cat([x_masked_feats, state], dim=1)
+        st = self.conditioner(h)
+        s, t_shift = st.chunk(2, dim=1)
+        s = torch.tanh(s) * 3.0
+
+        x_other = x[:, (~self.mask.bool())]
+        y_other = x_other * torch.exp(s) + t_shift
+
+        y = x.clone()
+        y[:, (~self.mask.bool())] = y_other
+
+        log_det = s.sum(dim=1)
+        return y, log_det
+
+    def inverse(self, y, state):
+        y_masked_feats = y[:, self.mask.bool()]
+        h = torch.cat([y_masked_feats, state], dim=1)
+        st = self.conditioner(h)
+        s, t_shift = st.chunk(2, dim=1)
+        s = torch.tanh(s) * 3.0
+
+        y_other = y[:, (~self.mask.bool())]
+        x_other = (y_other - t_shift) * torch.exp(-s)
+
+        x = y.clone()
+        x[:, (~self.mask.bool())] = x_other
+        log_det = -s.sum(dim=1)
+        return x, log_det
