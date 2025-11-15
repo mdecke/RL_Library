@@ -77,18 +77,17 @@ def main():
     np.random.seed(args.seed)
 
     config_file = os.path.join("configs", "ExpertConfig.yaml")
-    cfg = load_config(config_file, args)
-    cfg['expert_type'] = args.expert_type
+    full_cfg = load_config(config_file, args)
+    
+    cfg = {k: v for k, v in full_cfg.items() if k not in ['mle', 'gmm', 'cnf']}
     cfg['expert_domain'] = args.expert_domain
+    cfg[args.expert_type] = full_cfg[args.expert_type]
 
     if not os.path.exists(args.path_to_saved_expert):
         os.makedirs(args.path_to_saved_expert, exist_ok=True)
 
     expert_data = make_data_frame(args.expert_data_path)
 
-    obss_tensor = torch.tensor(expert_data[[col for col in expert_data.columns if "obs" in col]].values, dtype=torch.float32).to(args.device)
-    acts_tensor = torch.tensor(expert_data[[col for col in expert_data.columns if "act" in col]].values, dtype=torch.float32).to(args.device)
-    
     # Extract states and actions
     state_cols = [col for col in expert_data.columns if col.startswith('obs_')]
     action_cols = [col for col in expert_data.columns if col.startswith('act_')]
