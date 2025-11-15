@@ -23,7 +23,7 @@ parser.add_argument('--path_to_saved_policy', type=str, help='Path to the saved 
 parser.add_argument('--algorithm', type=str, default='tdn', help='RL algorithm to use')
 parser.add_argument('--device', type=str, default='cpu', help='Device to use for training (cpu or cuda)')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
-
+parser.add_argument('--expert_guidance', type=str, choices=["mle","gmm","cnf"], default=None, help='Type of expert to use for guidance (if any)')
 args = parser.parse_args()
 
 
@@ -60,6 +60,24 @@ def main():
 
     noise = get_noise_model(general_cfg)
 
+    if args.expert_guidance is not None:
+        config_file = os.path.join("configs", "ExpertConfig.yaml")
+        full_cfg = load_config(config_file, args)
+        expert_cfg = {k: v for k, v in full_cfg.items() if k not in ['mle', 'gmm', 'cnf']}
+        expert_cfg[args.expert_guidance] = full_cfg[args.expert_guidance]
+        expert_cfg['device'] = args.device
+        expert_cfg['expert_domain'] = 'time'
+        expert_cfg["obs_dim"] = env.single_observation_space.shape[0]
+        expert_cfg["action_dim"] = env.single_action_space.shape[0]
+        expert = agents.create_expert(args.expert_guidance, expert_cfg)
+        expert_model_path = os.path.join('saved', args.task, 'expert')
+        expert.load(expert_model_path)
+        print(f"[INFO]: Using {args.expert_guidance} expert for guidance during training.")
+    else:
+        expert = None
+        print(f"[INFO]: No expert guidance used during training.")
+    quit()
+
     cumulative_reward = torch.zeros((args.num_envs,1), dtype=torch.float32, device=agent.device)
     episode_lengths = torch.zeros((args.num_envs,), dtype=torch.int32, device=agent.device)
     avg_return = []
@@ -90,7 +108,11 @@ def main():
                 clipped_action = torch.as_tensor(action, dtype=torch.float32, device=agent.device)
             else:
                 action = agent.policy.forward(normalized_obs)
-                expl_noise = noise.sample(action.shape).to(agent.device)
+                if expert is not None:
+                    # expl_noise = expert.sample(obs_tensor)
+                    expl_noise = expert.most_likely_component(obs_tensor) # normalization handled by expert
+                else:
+                    expl_noise = noise.sample(action.shape).to(agent.device)
                 noisy_action = action + expl_noise
                 clipped_action = noisy_action.clamp(min=agent.action_low, max=agent.action_high)
         
