@@ -185,18 +185,19 @@ class GMMExpert:
         self.action_dim = cfg['action_dim']
 
         self.cfg = cfg
-        self.expert_domain = cfg['expert_domain']
-        self.device = cfg['device']
+        self.expert_domain = cfg.get('expert_domain', 'time')
+        self.device = cfg.get('device', 'cpu')
         self.action_limit = cfg.get('action_limit', 1.0)
         self.validation_interval = cfg.get("validation_interval", 1)
         self.patience = cfg.get("early_stopping_patience", 10)
         self.min_delta = cfg.get("min_delta", 1e-4)
         self.grad_clipping = cfg.get("grad_clipping", None)
-
         self.preprocess_inputs = cfg.get("preprocess_inputs", True)
+        
         if self.preprocess_inputs:
             self.obs_preprocessor = RunningStandardScaler(size=self.obs_dim, device=self.device)
 
+        self.early_stopping = EarlyStopping(patience=self.patience, min_delta=self.min_delta, verbose=True)
 
         self.init_expert()
 
@@ -227,8 +228,6 @@ class GMMExpert:
     def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
         self.model.train()
         num_epochs = self.cfg["gmm"]["n_epochs"]
-
-        early_stopping = EarlyStopping(patience=self.patience, min_delta=self.min_delta, verbose=True)
 
         train_losses = []
         val_losses = []
@@ -274,13 +273,13 @@ class GMMExpert:
                 # Step scheduler based on validation loss
                 self.model.scheduler.step(val_loss)
                 
-                if early_stopping(val_loss, self.model):
+                if self.early_stopping(val_loss, self.model):
                     epoch_pbar.write(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
-                    epoch_pbar.write(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
+                    epoch_pbar.write(f"[INFO] Best validation loss: {self.early_stopping.best_loss:.6f}")
                     break
                 
-                if early_stopping.best_model_state is not None:
-                    early_stopping.load_best_model(self.model)
+                if self.early_stopping.best_model_state is not None:
+                    self.early_stopping.load_best_model(self.model)
                     epoch_pbar.write("[INFO] Loaded best model from early stopping")
         
         epoch_pbar.close()
@@ -310,6 +309,7 @@ class GMMExpert:
             inputs = self.obs_preprocessor(inputs, train=False).to(self.device)
         else:
             inputs = inputs.to(self.device)
+        
         mu, _, pi = self.model.forward(inputs)
         batch_size = inputs.size(0)
         _, component_indices = torch.max(pi, dim=-1)
@@ -373,8 +373,8 @@ class CNFExpert(nn.Module):
         self.n_flows = cfg.get("n_flows", 10)
         self.hidden_dims = cfg.get("hidden_dims", (512, 512, 256))
         self.epochs = cfg.get("n_epochs", 100)
-
         self.preprocess_inputs = cfg.get("preprocess_inputs", True)
+        
         if self.preprocess_inputs:
             self.obs_preprocessor = RunningStandardScaler(size=self.obs_dim, device=self.device)
         
