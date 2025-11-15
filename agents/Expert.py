@@ -54,6 +54,8 @@ class MLEExpert:
         if self.preprocess_inputs:
             self.obs_preprocessor(obss, train=True)
             self.obs_preprocessor.eval()
+        else:
+            raise ValueError("Observation preprocessor must be enabled to fit.")
       
     def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
         self.model.train()
@@ -222,6 +224,8 @@ class GMMExpert:
         if self.preprocess_inputs:
             self.obs_preprocessor(obss, train=True)
             self.obs_preprocessor.eval()
+        else: 
+            raise ValueError("Observation preprocessor must be enabled to fit.")
 
 
     def train(self, train_data:torch.utils.data.DataLoader, val_data:torch.utils.data.DataLoader):
@@ -429,17 +433,6 @@ class CNFExpert(nn.Module):
         return log_pz + log_det
     
     def regularized_loss(self, action, state, reg_weight=0.01):
-        """
-        Compute regularized loss with reconstruction term.
-        
-        Args:
-            action: target actions
-            state: conditioning states
-            reg_weight: weight for regularization terms
-        
-        Returns:
-            Total loss with regularization
-        """
         # Compute inverse once (more efficient)
         z, log_det = self.inverse(action, state)
         
@@ -560,6 +553,8 @@ class CNFExpert(nn.Module):
         if self.preprocess_inputs:
             self.obs_preprocessor(obss, train=True)
             self.obs_preprocessor.eval()
+        else:
+            raise ValueError("Observation preprocessor must be enabled to fit.")
 
     def eval(self):
         self.couplings.eval()
