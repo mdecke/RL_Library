@@ -38,11 +38,16 @@ def main():
     warm_up = general_cfg['training']['warm_up']
     random_steps = general_cfg['training']['random_steps']
 
-    log_dir = os.path.join("logs", args.task, args.algorithm, "training_stats")
+    if args.expert_guidance is not None:
+        log_dir = os.path.join("logs", args.task, args.algorithm, "guided_training_stats")
+        save_dir = os.path.join("saved", args.task, args.algorithm, f"EGOP_models")
+    else:
+        log_dir = os.path.join("logs", args.task, args.algorithm, "training_stats")
+        save_dir = os.path.join("saved", args.task, args.algorithm, "RL_models")
+
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
-
-    save_dir = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models")
+    
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
 
