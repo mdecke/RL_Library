@@ -10,8 +10,8 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from agents import create_expert
-from base_classes.utils import load_config, make_data_frame
-from plot import plot_prediction_accuracy, plot_action_predictions
+from base_classes.utils import load_config, make_data_frame, evaluate_expert_rollout
+from plot import plot_prediction_accuracy, plot_action_predictions, plot_rollout_rewards
 
 
 def augment_boundaries_combined(obss, acts, boundary_threshold=0.8):
@@ -70,90 +70,6 @@ parser.add_argument("--n_eval_episodes", type=int, default=5, help="Number of ep
 
 args = parser.parse_args()
 
-
-def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
-    """Evaluate expert policy in the environment with rollouts."""
-    env = gym.make(env_name)
-    
-    episode_rewards = []
-    all_instantaneous_rewards = []
-    all_cumulative_rewards = []
-    
-    for episode in range(n_episodes):
-        obs, info = env.reset(seed=seed + episode)
-        done = False
-        truncated = False
-        episode_reward = 0
-        cumulative_reward = 0
-        instantaneous_rewards = []
-        cumulative_rewards = []
-        
-        while not (done or truncated):
-            # Get action from expert
-            obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-            with torch.no_grad():
-                action = expert.most_likely_component(obs_tensor).squeeze(0).cpu().numpy()
-            
-            # Step environment
-            obs, reward, done, truncated, info = env.step(action)
-            
-            episode_reward += reward
-            cumulative_reward += reward
-            instantaneous_rewards.append(reward)
-            cumulative_rewards.append(cumulative_reward)
-        
-        episode_rewards.append(episode_reward)
-        all_instantaneous_rewards.append(instantaneous_rewards)
-        all_cumulative_rewards.append(cumulative_rewards)
-        
-        print(f"Episode {episode + 1}/{n_episodes}: Reward = {episode_reward:.2f}")
-    
-    env.close()
-    
-    avg_reward = np.mean(episode_rewards)
-    std_reward = np.std(episode_rewards)
-    print(f"\nRollout Evaluation:")
-    print(f"Average Episode Reward: {avg_reward:.2f} ± {std_reward:.2f}")
-    
-    return episode_rewards, all_instantaneous_rewards, all_cumulative_rewards
-
-
-def plot_rollout_rewards(all_instantaneous_rewards, all_cumulative_rewards, plots_dir=None):
-    """Plot instantaneous and cumulative rewards from rollout evaluation."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Plot instantaneous rewards
-    ax = axes[0]
-    for i, rewards in enumerate(all_instantaneous_rewards):
-        steps = np.arange(len(rewards))
-        ax.plot(steps, rewards, alpha=0.6, label=f'Episode {i+1}')
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Instantaneous Reward')
-    ax.set_title('Instantaneous Rewards per Episode')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    
-    # Plot cumulative rewards
-    ax = axes[1]
-    for i, cum_rewards in enumerate(all_cumulative_rewards):
-        steps = np.arange(len(cum_rewards))
-        ax.plot(steps, cum_rewards, alpha=0.6, label=f'Episode {i+1}')
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Cumulative Reward')
-    ax.set_title('Cumulative Rewards per Episode')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    
-    plt.suptitle('Expert Policy Rollout Evaluation', fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    
-    if plots_dir:
-        save_path = os.path.join(plots_dir, 'expert_rollout_evaluation.png')
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"[INFO] Saved rollout evaluation plot to {save_path}")
-    
-    plt.show()
-    return fig
 
 def main():
 

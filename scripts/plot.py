@@ -241,6 +241,44 @@ def plot_action_predictions(true_actions, predicted_actions, action_dim=8, plots
     plt.show()
 
 
+def plot_rollout_rewards(all_instantaneous_rewards, all_cumulative_rewards, plots_dir=None):
+    """Plot instantaneous and cumulative rewards from rollout evaluation."""
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    
+    # Plot instantaneous rewards
+    ax = axes[0]
+    for i, rewards in enumerate(all_instantaneous_rewards):
+        steps = np.arange(len(rewards))
+        ax.plot(steps, rewards, alpha=0.6, label=f'Episode {i+1}')
+    ax.set_xlabel('Step')
+    ax.set_ylabel('Instantaneous Reward')
+    ax.set_title('Instantaneous Rewards per Episode')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Plot cumulative rewards
+    ax = axes[1]
+    for i, cum_rewards in enumerate(all_cumulative_rewards):
+        steps = np.arange(len(cum_rewards))
+        ax.plot(steps, cum_rewards, alpha=0.6, label=f'Episode {i+1}')
+    ax.set_xlabel('Step')
+    ax.set_ylabel('Cumulative Reward')
+    ax.set_title('Cumulative Rewards per Episode')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    plt.suptitle('Expert Policy Rollout Evaluation', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    
+    if plots_dir:
+        save_path = os.path.join(plots_dir, 'expert_rollout_evaluation.png')
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"[INFO] Saved rollout evaluation plot to {save_path}")
+    
+    plt.show()
+    return fig
+
+
 def main():
     args = parse_args()
 

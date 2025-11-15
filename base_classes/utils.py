@@ -1,6 +1,7 @@
 import os
 
 from typing import Dict, Tuple
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -8,6 +9,8 @@ import torch.nn.functional as F
 import torch.distributions as dist
 from torchinfo import summary
 import yaml
+
+import gymnasium as gym
 
 from skrl.resources.preprocessors.torch import RunningStandardScaler
 
@@ -173,3 +176,49 @@ class EarlyStopping:
         if self.best_model_state is not None:
             model.load_state_dict(self.best_model_state)
 
+
+def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
+    """Evaluate expert policy in the environment with rollouts."""
+    env = gym.make(env_name)
+    
+    episode_rewards = []
+    all_instantaneous_rewards = []
+    all_cumulative_rewards = []
+    
+    for episode in range(n_episodes):
+        obs, info = env.reset(seed=seed + episode)
+        done = False
+        truncated = False
+        episode_reward = 0
+        cumulative_reward = 0
+        instantaneous_rewards = []
+        cumulative_rewards = []
+        
+        while not (done or truncated):
+            # Get action from expert
+            obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
+            with torch.no_grad():
+                action = expert.most_likely_component(obs_tensor).squeeze(0).cpu().numpy()
+            
+            # Step environment
+            obs, reward, done, truncated, info = env.step(action)
+            
+            episode_reward += reward
+            cumulative_reward += reward
+            instantaneous_rewards.append(reward)
+            cumulative_rewards.append(cumulative_reward)
+        
+        episode_rewards.append(episode_reward)
+        all_instantaneous_rewards.append(instantaneous_rewards)
+        all_cumulative_rewards.append(cumulative_rewards)
+        
+        print(f"Episode {episode + 1}/{n_episodes}: Reward = {episode_reward:.2f}")
+    
+    env.close()
+    
+    avg_reward = np.mean(episode_rewards)
+    std_reward = np.std(episode_rewards)
+    print(f"\nRollout Evaluation:")
+    print(f"Average Episode Reward: {avg_reward:.2f} ± {std_reward:.2f}")
+    
+    return episode_rewards, all_instantaneous_rewards, all_cumulative_rewards
