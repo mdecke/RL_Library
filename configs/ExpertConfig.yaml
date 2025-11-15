@@ -1,6 +1,6 @@
 seed: 42
 device: cpu
-history_length: 10
+history_length: 0
 validation_split: 0.2
 test_split: 0.2
 val_interval: 1
@@ -12,7 +12,6 @@ min_delta: 0.00001  # Tighter convergence criterion
 # Boundary data augmentation
 augment_boundaries: true        # Enable/disable boundary augmentation
 boundary_threshold: 0.8         # Consider |action| > 0.8 as boundary
-
 
 
 mle:
@@ -35,16 +34,14 @@ gmm:
   weight_decay: 0.0002  # L2 regularization to prevent overfitting
 
 cnf:
-  learning_rate: 0.001
-  batch_size: 512
+  learning_rate: 0.0005 
+  batch_size: 256  
   conditioner_type: coupling # Options: 'coupling', 'masked', 'recurrent'
-  conditionner_hidden_sizes: [256, 256]
+  conditionner_hidden_sizes: [512, 512, 256] 
   conditioner_activation_fct: relu
   transform_type: affine  # Options: 'affine', 'spline', 'combination', integration
-  transformer_hidden_dim: [256, 256]
-  transformer_activation_fct: relu
-  n_layers: 6
+  n_layers: 8 
   n_epochs: 500
-  dropout: 0.02
+  dropout: 0.0 
   
   
