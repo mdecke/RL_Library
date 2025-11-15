@@ -363,14 +363,17 @@ class CNFExpert(nn.Module):
         self.expert_domain = cfg['expert_domain']
         self.device = cfg['device']
         self.action_limit = cfg.get('action_limit', 1.0)
-        self.lr = cfg.get("learning_rate", 1e-3)
-        self.validation_interval = cfg.get("validation_interval", 1)
+        
+        # Read CNF-specific config
+        cnf_cfg = cfg.get('cnf', {})
+        self.lr = cnf_cfg.get("learning_rate", 1e-3)
+        self.validation_interval = cfg.get("val_interval", 1)
         self.patience = cfg.get("early_stopping_patience", 10)
         self.min_delta = cfg.get("min_delta", 1e-4)
         self.grad_clipping = cfg.get("grad_clipping", None)
-        self.n_flows = cfg.get("n_flows", 10)
-        self.hidden_dims = cfg.get("hidden_dims", (512, 512, 256))
-        self.epochs = cfg.get("n_epochs", 100)
+        self.n_flows = cnf_cfg.get("n_layers", 8)
+        self.hidden_dims = tuple(cnf_cfg.get("conditionner_hidden_sizes", [512, 512, 256]))
+        self.epochs = cnf_cfg.get("n_epochs", 500)
         self.preprocess_inputs = cfg.get("preprocess_inputs", True)
         
         if self.preprocess_inputs:
