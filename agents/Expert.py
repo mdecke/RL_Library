@@ -90,7 +90,6 @@ class MLEExpert:
             
             avg_epoch_loss = epoch_loss / len(train_data)
             train_losses.append(avg_epoch_loss)
-            # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             epoch_pbar.set_postfix({
                 'train_loss': f'{avg_epoch_loss:.4f}',
                 'lr': f'{self.model.optimizer.param_groups[0]["lr"]:.6f}',
@@ -99,7 +98,6 @@ class MLEExpert:
             if (epoch + 1) % self.cfg["val_interval"] == 0:
                 val_loss = self.validate(val_data)
                 val_losses.append(val_loss)
-                # print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
                 epoch_pbar.set_postfix({
                 'train_loss': f'{avg_epoch_loss:.4f}',
                 'val_loss': f'{val_loss:.4f}',
@@ -110,8 +108,6 @@ class MLEExpert:
                 self.model.scheduler.step(val_loss)
                 
                 if early_stopping(val_loss, self.model):
-                    # print(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
-                    # print(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
                     epoch_pbar.write(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
                     epoch_pbar.write(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
                     break
@@ -261,7 +257,6 @@ class GMMExpert:
             
             avg_epoch_loss = epoch_loss / len(train_data)
             train_losses.append(avg_epoch_loss)
-            # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             epoch_pbar.set_postfix({
                 'train_loss': f'{avg_epoch_loss:.4f}',
                 'lr': f'{self.model.optimizer.param_groups[0]["lr"]:.6f}',
@@ -270,7 +265,6 @@ class GMMExpert:
             if (epoch + 1) % self.cfg["val_interval"] == 0:
                 val_loss = self.validate(val_data)
                 val_losses.append(val_loss)
-                # print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
                 epoch_pbar.set_postfix({
                 'train_loss': f'{avg_epoch_loss:.4f}',
                 'val_loss': f'{val_loss:.4f}',
@@ -281,8 +275,6 @@ class GMMExpert:
                 self.model.scheduler.step(val_loss)
                 
                 if early_stopping(val_loss, self.model):
-                    # print(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
-                    # print(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f }")
                     epoch_pbar.write(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
                     epoch_pbar.write(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
                     break
@@ -398,12 +390,12 @@ class CNFExpert(nn.Module):
         self.register_buffer("base_std", torch.ones(self.action_dim))
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        # self.early_stopping = EarlyStopping(patience=self.patience, min_delta=self.min_delta, verbose=True)
+        self.early_stopping = EarlyStopping(patience=self.patience, min_delta=self.min_delta, verbose=True)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min',
-                                                           factor=0.5, patience=3)
+                                                           factor=0.5, patience=5)
 
     def forward(self, z, state):
-        # z -> action (generative)
+        '''Compute forward transformation from latent code z to action: decoding.'''
         log_det = torch.zeros(z.size(0), device=z.device)
         x = z
         for coupling in self.couplings:
@@ -414,9 +406,9 @@ class CNFExpert(nn.Module):
         return x, log_det
 
     def inverse(self, action, state):
-        # action -> z (encoding)
+        '''Compute inverse transformation from action -> z: encoding.'''
         # Apply inverse tanh (atanh) to unbounded actions
-        action_unbounded = torch.atanh(torch.clamp(action / self.action_limit, -0.999, 0.999))
+        action_unbounded = torch.atanh(torch.clamp(action / self.action_limit, -0.999, 0.999)) #TODO: action limit
         
         log_det = torch.zeros(action.size(0), device=action.device)
         z = action_unbounded
@@ -426,6 +418,7 @@ class CNFExpert(nn.Module):
         return z, log_det
 
     def log_prob(self, action, state):
+        '''Compute log probability of action given state.'''
         z, log_det = self.inverse(action, state)
         # base log prob
         log_pz = -0.5 * torch.log(2 * torch.pi * (self.base_std ** 2)) - 0.5 * ((z - self.base_mean) ** 2) / (self.base_std ** 2)
@@ -433,26 +426,12 @@ class CNFExpert(nn.Module):
         return log_pz + log_det
     
     def regularized_loss(self, action, state, reg_weight=0.01):
-        # Compute inverse once (more efficient)
-        z, log_det = self.inverse(action, state)
-        
-        # Main negative log-likelihood loss
-        log_pz = -0.5 * torch.log(2 * torch.pi * (self.base_std ** 2)) - 0.5 * ((z - self.base_mean) ** 2) / (self.base_std ** 2)
-        log_pz = log_pz.sum(dim=1)
-        log_prob = log_pz + log_det
-        nll_loss = -log_prob.mean()
-        
-        # Regularization 1: Penalize extreme latent codes
-        latent_reg = (z ** 2).mean() * reg_weight
-        
-        # Regularization 2: Jacobian regularization for stable invertibility
-        jacobian_reg = (log_det ** 2).mean() * (reg_weight * 0.1)
-        
-        # Regularization 3: Reconstruction loss - enforce predictions close to true actions
-        a_hat, _ = self.forward(z, state)  # Reconstruct from latent
-        reconstruction_loss = F.mse_loss(a_hat, action) * (reg_weight * 10.0)
-        
-        total_loss = nll_loss + latent_reg + jacobian_reg + reconstruction_loss
+        """Compute negative log likelihood loss with L2 regularization on latent codes."""
+        lp = self.log_prob(action, state)
+        nll_loss = -lp.mean()
+        z, _ = self.inverse(action, state)
+        l2_reg = (z ** 2).mean()
+        total_loss = nll_loss + reg_weight * l2_reg
         
         return total_loss
     
@@ -460,6 +439,9 @@ class CNFExpert(nn.Module):
         """Sample actions conditioned on state."""
         self.eval()
         with torch.no_grad():
+            if self.preprocess_inputs:
+                state = self.obs_preprocessor(state, train=False)
+            
             B = state.size(0)
             z = torch.randn(B * n_samples, self.action_dim, device=state.device)
             state_exp = state.unsqueeze(1).expand(-1, n_samples, -1).reshape(B * n_samples, -1)
@@ -485,13 +467,12 @@ class CNFExpert(nn.Module):
                     state_batch = self.obs_preprocessor(state_batch, train=False).to(self.device)
 
                 self.optimizer.zero_grad()
-                # lp = self.log_prob(action_batch, state_batch)
-                # loss = -lp.mean()
-                loss = self.regularized_loss(action_batch, state_batch)
+                loss = self.regularized_loss(action_batch, state_batch, reg_weight=1e-4)
                 if self.grad_clipping is not None:
                     torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clipping)
                 loss.backward()
                 self.optimizer.step()
+
                 epoch_loss += loss.item() * action_batch.size(0)
             
             avg_epoch_loss = epoch_loss / len(train_data.dataset)
@@ -504,27 +485,24 @@ class CNFExpert(nn.Module):
             if (epoch + 1) % self.cfg["val_interval"] == 0:
                 val_loss = self.validate(val_data)
                 val_losses.append(val_loss)
-                print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
-            #     epoch_pbar.set_postfix({
-            #     'train_loss': f'{avg_epoch_loss:.4f}',
-            #     'val_loss': f'{val_loss:.4f}',
-            #     'lr': f'{self.optimizer.param_groups[0]["lr"]:.6f}'
-            # })
+                epoch_pbar.set_postfix({
+                    'train_loss': f'{avg_epoch_loss:.4f}',
+                    'val_loss': f'{val_loss:.4f}',
+                    'lr': f'{self.optimizer.param_groups[0]["lr"]:.6f}'
+                })
                 
                 # Step scheduler based on validation loss
-                # self.scheduler.step(val_loss)
+                self.scheduler.step(val_loss)
                 
-                # if self.early_stopping(val_loss, self):
-                #     # print(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
-                #     # print(f"[INFO] Best validation loss: {early_stopping.best_loss:.6f}")
-                #     epoch_pbar.write(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
-                #     epoch_pbar.write(f"[INFO] Best validation loss: {self.early_stopping.best_loss:.6f}")
-                #     break
+                if self.early_stopping(val_loss, self):
+                    epoch_pbar.write(f"\n[INFO] Early stopping triggered at epoch {epoch+1}")
+                    epoch_pbar.write(f"[INFO] Best validation loss: {self.early_stopping.best_loss:.6f}")
+                    break
         
         # Load best model from early stopping
-        # if self.early_stopping.best_model_state is not None:
-        #     self.early_stopping.load_best_model(self)
-        #     epoch_pbar.write("[INFO] Loaded best model from early stopping")
+        if self.early_stopping.best_model_state is not None:
+            self.early_stopping.load_best_model(self)
+            epoch_pbar.write("[INFO] Loaded best model from early stopping")
         
         epoch_pbar.close()
 
@@ -541,9 +519,8 @@ class CNFExpert(nn.Module):
                 if self.preprocess_inputs:
                     state_batch = self.obs_preprocessor(state_batch, train=False).to(self.device)
                 
-                # lp = self.log_prob(action_batch, state_batch)
-                # batch_loss = -lp.mean()
-                batch_loss = self.regularized_loss(action_batch, state_batch)
+                batch_loss = self.regularized_loss(action_batch, state_batch, reg_weight=1e-4)
+                
                 loss += batch_loss.item() * action_batch.size(0)
                 
             avg_loss = loss / len(val_data.dataset)
@@ -578,8 +555,17 @@ class CNFExpert(nn.Module):
             print(f"[INFO]: Expert observation preprocessor loaded from {experts_preprocessor_path}")
 
     def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
-        sampeld_actions = self.sample(inputs, n_samples=100).squeeze(1)
-        return sampeld_actions.mean(dim=1)
+        self.eval()
+        with torch.no_grad():
+            if self.preprocess_inputs:
+                inputs = self.obs_preprocessor(inputs, train=False)
+            
+            batch_size = inputs.size(0)
+        
+            z_mode = torch.zeros(batch_size, self.action_dim, device=inputs.device)
+            best_actions, _ = self.forward(z_mode, inputs)
+            
+            return best_actions
 
 
     
