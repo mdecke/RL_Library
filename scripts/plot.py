@@ -205,12 +205,21 @@ def plot_action_predictions(true_actions, predicted_actions, action_dim=8, plots
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 3*n_rows))
     axes = axes.flatten()
     
+    # Calculate overall metrics
+    overall_mse = ((true_actions - predicted_actions) ** 2).mean()
+    per_dim_mses = []
+    
     for i in range(action_dim):
         ax = axes[i]
         steps = np.arange(len(true_actions))
         ax.plot(steps, true_actions[:, i], label='True', alpha=0.7, linewidth=1)
         ax.plot(steps, predicted_actions[:, i], label='Predicted', alpha=0.7, linewidth=1)
-        ax.set_title(f'Action dim {i}')
+        
+        # Calculate per-dimension MSE
+        dim_mse = ((true_actions[:, i] - predicted_actions[:, i]) ** 2).mean()
+        per_dim_mses.append(dim_mse)
+        
+        ax.set_title(f'Action dim {i} (MSE: {dim_mse:.4f})')
         ax.set_xlabel('Step')
         ax.set_ylabel('Action value')
         ax.legend()
@@ -219,7 +228,10 @@ def plot_action_predictions(true_actions, predicted_actions, action_dim=8, plots
     for i in range(action_dim, len(axes)):
         axes[i].axis('off')
     
-    plt.suptitle('One-step Action Predictions (Flow conditioned on state)')
+    avg_mse_per_dim = np.mean(per_dim_mses)
+    
+    plt.suptitle(f'One-step Action Predictions | Overall MSE: {overall_mse:.4f} | Avg MSE/dim: {avg_mse_per_dim:.4f}', 
+                 fontsize=14, fontweight='bold')
     plt.tight_layout()
     if plots_dir:
         import os

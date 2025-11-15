@@ -10,7 +10,7 @@ early_stopping_patience: 15  # Increased from default 10 - give more room after 
 min_delta: 0.00001  # Tighter convergence criterion
 
 # Boundary data augmentation
-augment_boundaries: false        # Enable/disable boundary augmentation
+augment_boundaries: true        # Enable/disable boundary augmentation
 boundary_threshold: 0.8         # Consider |action| > 0.8 as boundary
 
 
@@ -36,7 +36,7 @@ gmm:
 
 cnf:
   learning_rate: 0.001
-  batch_size: 256
+  batch_size: 512
   conditioner_type: coupling # Options: 'coupling', 'masked', 'recurrent'
   conditionner_hidden_sizes: [256, 256]
   conditioner_activation_fct: relu
@@ -47,11 +47,4 @@ cnf:
   n_epochs: 500
   dropout: 0.02
   
-  # Conditional base distribution (MLE)
-  use_conditional_base: true  # If true, uses MLE to learn obs->base_dist mapping
-  base_hidden_sizes: [256, 256]
-  base_learning_rate: 0.001
-  base_activation_fct: gelu
-  base_dropout: 0.1
-  base_weight_decay: 0.0001
   
