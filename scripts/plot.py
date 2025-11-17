@@ -282,55 +282,134 @@ def plot_rollout_rewards(all_instantaneous_rewards, all_cumulative_rewards, plot
 def main():
     args = parse_args()
 
-    training_stats_folder = os.path.join(args.log_dir, args.task, args.algorithm, "training_stats")
-    training_data = make_data_frame(training_stats_folder)
+    # Load both guided and regular training data
+    guided_stats_folder = os.path.join(args.log_dir, args.task, args.algorithm, "guided_training_stats")
+    regular_stats_folder = os.path.join(args.log_dir, args.task, args.algorithm, "training_stats")
+    
+    has_guided = os.path.exists(guided_stats_folder) and any(f.endswith('.csv') for f in os.listdir(guided_stats_folder))
+    has_regular = os.path.exists(regular_stats_folder) and any(f.endswith('.csv') for f in os.listdir(regular_stats_folder))
+    
+    if not has_guided and not has_regular:
+        print(f"[ERROR] No training data found in {guided_stats_folder} or {regular_stats_folder}")
+        return
     
     title = f"{args.algorithm} · {args.task}"
     smoothing = max(int(args.smoothing_window), 0)
-
-    # Compute stats for each metric (assuming single cycle/run for now)
-    # Add a dummy cycle column if it doesn't exist
-    if "seed" not in training_data.columns:
-        training_data["seed"] = 0
     
-    returns_stats = compute_cycle_stats(training_data, "seed", "return")
-    policy_stats = compute_cycle_stats(training_data, "seed", "policy_loss")
-    q_stats = compute_cycle_stats(training_data, "seed", "q_loss")
-
-    if smoothing > 1:
-        returns_stats = apply_smoothing(returns_stats, smoothing)
-        policy_stats = apply_smoothing(policy_stats, smoothing)
-        q_stats = apply_smoothing(q_stats, smoothing)
-
     save_root = os.path.join(args.save_dir, args.task, args.algorithm)
     os.makedirs(save_root, exist_ok=True)
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=False)
+    # Process guided training data if available
+    guided_returns_stats = None
+    guided_policy_stats = None
+    guided_q_stats = None
     
-    plot_returns(axes[0], returns_stats, smoothing)
-    axes[0].set_title(f"{title} - Mean Episodic Return")
+    if has_guided:
+        guided_data = make_data_frame(guided_stats_folder)
+        if "seed" not in guided_data.columns:
+            guided_data["seed"] = 0
+        
+        guided_returns_stats = compute_cycle_stats(guided_data, "seed", "return")
+        guided_policy_stats = compute_cycle_stats(guided_data, "seed", "policy_loss")
+        guided_q_stats = compute_cycle_stats(guided_data, "seed", "q_loss")
 
-    plot_series(
-        axes[1],
-        policy_stats,
-        ylabel="Policy Loss",
-        title=f"{title} - Mean Policy Loss (smoothed={smoothing if smoothing>1 else 'off'})",
-        label="policy loss",
-    )
+        if smoothing > 1:
+            guided_returns_stats = apply_smoothing(guided_returns_stats, smoothing)
+            guided_policy_stats = apply_smoothing(guided_policy_stats, smoothing)
+            guided_q_stats = apply_smoothing(guided_q_stats, smoothing)
     
-    plot_series(
-        axes[2],
-        q_stats,
-        ylabel="Value Loss",
-        title=f"{title} - Mean Q-function Loss (smoothed={smoothing if smoothing>1 else 'off'})",
-        label="q loss",
-    )
+    # Process regular training data if available
+    regular_returns_stats = None
+    regular_policy_stats = None
+    regular_q_stats = None
     
-    out_path = os.path.join(save_root, "all_metrics.svg")
+    if has_regular:
+        regular_data = make_data_frame(regular_stats_folder)
+        if "seed" not in regular_data.columns:
+            regular_data["seed"] = 0
+        
+        regular_returns_stats = compute_cycle_stats(regular_data, "seed", "return")
+        regular_policy_stats = compute_cycle_stats(regular_data, "seed", "policy_loss")
+        regular_q_stats = compute_cycle_stats(regular_data, "seed", "q_loss")
+
+        if smoothing > 1:
+            regular_returns_stats = apply_smoothing(regular_returns_stats, smoothing)
+            regular_policy_stats = apply_smoothing(regular_policy_stats, smoothing)
+            regular_q_stats = apply_smoothing(regular_q_stats, smoothing)
+
+    # Create comparison plot
+    fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=False)
+    
+    # Plot returns
+    ax = axes[0]
+    if regular_returns_stats is not None:
+        x = np.arange(len(regular_returns_stats["mean"]))
+        ax.plot(x, regular_returns_stats["mean"], label="Regular Training", color='blue', linewidth=2)
+        ax.fill_between(x, regular_returns_stats["lower"], regular_returns_stats["upper"], 
+                        alpha=0.15, color='blue')
+    
+    if guided_returns_stats is not None:
+        x = np.arange(len(guided_returns_stats["mean"]))
+        ax.plot(x, guided_returns_stats["mean"], label="Expert-Guided Training", color='red', linewidth=2)
+        ax.fill_between(x, guided_returns_stats["lower"], guided_returns_stats["upper"], 
+                        alpha=0.15, color='red')
+    
+    ax.set_ylabel("Return")
+    ax.set_xlabel("Training Steps")
+    ax.set_title(f"{title} - Episodic Return Comparison")
+    ax.axhline(y=0.0, linewidth=1, color="k", linestyle='--', alpha=0.5)
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize='medium')
+    
+    # Plot policy loss
+    ax = axes[1]
+    if regular_policy_stats is not None:
+        x = np.arange(len(regular_policy_stats["mean"]))
+        ax.plot(x, regular_policy_stats["mean"], label="Regular Training", color='blue', linewidth=2)
+        ax.fill_between(x, regular_policy_stats["lower"], regular_policy_stats["upper"], 
+                        alpha=0.15, color='blue')
+    
+    if guided_policy_stats is not None:
+        x = np.arange(len(guided_policy_stats["mean"]))
+        ax.plot(x, guided_policy_stats["mean"], label="Expert-Guided Training", color='red', linewidth=2)
+        ax.fill_between(x, guided_policy_stats["lower"], guided_policy_stats["upper"], 
+                        alpha=0.15, color='red')
+    
+    ax.set_ylabel("Policy Loss")
+    ax.set_xlabel("Training Steps")
+    ax.set_title(f"{title} - Policy Loss Comparison")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize='medium')
+    
+    # Plot Q loss
+    ax = axes[2]
+    if regular_q_stats is not None:
+        x = np.arange(len(regular_q_stats["mean"]))
+        ax.plot(x, regular_q_stats["mean"], label="Regular Training", color='blue', linewidth=2)
+        ax.fill_between(x, regular_q_stats["lower"], regular_q_stats["upper"], 
+                        alpha=0.15, color='blue')
+    
+    if guided_q_stats is not None:
+        x = np.arange(len(guided_q_stats["mean"]))
+        ax.plot(x, guided_q_stats["mean"], label="Expert-Guided Training", color='red', linewidth=2)
+        ax.fill_between(x, guided_q_stats["lower"], guided_q_stats["upper"], 
+                        alpha=0.15, color='red')
+    
+    ax.set_ylabel("Q Loss")
+    ax.set_xlabel("Training Steps")
+    ax.set_title(f"{title} - Q-function Loss Comparison")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize='medium')
+    
+    smoothing_text = f" (smoothed={smoothing})" if smoothing > 1 else ""
+    fig.suptitle(f"{title} - Training Comparison{smoothing_text}", 
+                 fontsize=16, fontweight='bold', y=0.995)
+    
+    out_path = os.path.join(save_root, "training_comparison.svg")
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
-    print(f"[OK] Saved plot → {out_path}")
+    print(f"[OK] Saved comparison plot → {out_path}")
 
     if args.show:
         plt.show()
