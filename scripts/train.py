@@ -26,6 +26,41 @@ parser.add_argument('--seed', type=int, default=42, help='Random seed for reprod
 parser.add_argument('--expert_guidance', type=str, choices=["mle","gmm","cnf"], default=None, help='Type of expert to use for guidance (if any)')
 args = parser.parse_args()
 
+class ReturnNormalizer:
+    """Normalize episodic returns to [-1, 1] range for exploration control"""
+    def __init__(self, clip=3.0):
+        self.mean = 0.0
+        self.var = 1.0
+        self.count = 0
+        self.clip = clip  # clip to ±clip std devs
+    
+    def update(self, returns):
+        """Update with batch of returns (can be single value or list)"""
+        if isinstance(returns, (int, float)):
+            returns = [returns]
+        returns = np.array(returns)
+        
+        batch_mean = np.mean(returns)
+        batch_var = np.var(returns)
+        batch_count = len(returns)
+        
+        delta = batch_mean - self.mean
+        total_count = self.count + batch_count
+        
+        self.mean += delta * batch_count / total_count
+        self.var = (self.count * self.var + batch_count * batch_var + 
+                    delta**2 * self.count * batch_count / total_count) / total_count
+        self.count = total_count
+    
+    def normalize(self, episodic_return):
+        """Normalize to [-1, 1] range"""
+        if self.count < 5:  # Not enough data yet
+            return 0.0
+        
+        std = np.sqrt(self.var) + 1e-8
+        normalized = (episodic_return - self.mean) / std
+        clipped = np.clip(normalized, -self.clip, self.clip)
+        return clipped / self.clip  # scale to [-1, 1]
 
 def main():
     
@@ -81,7 +116,6 @@ def main():
     else:
         expert = None
         print(f"[INFO]: No expert guidance used during training.")
-    quit()
 
     cumulative_reward = torch.zeros((args.num_envs,1), dtype=torch.float32, device=agent.device)
     episode_lengths = torch.zeros((args.num_envs,), dtype=torch.int32, device=agent.device)
@@ -93,6 +127,9 @@ def main():
     total_episodes = 0
     update_starts = warm_up // args.num_envs
 
+    return_normalizer = ReturnNormalizer(clip=3.0)
+    eta = 0.0
+    
     if args.task == "Pendulum-v1":
         obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
     else:
@@ -115,10 +152,12 @@ def main():
                 action = agent.policy.forward(normalized_obs)
                 if expert is not None:
                     # expl_noise = expert.sample(obs_tensor)
-                    expl_noise = expert.most_likely_component(obs_tensor) # normalization handled by expert
+                    expert_sample = expert.most_likely_component(obs_tensor) # normalization handled by expert
+                    noisy_action = eta*action + (1-eta)*expert_sample
                 else:
                     expl_noise = noise.sample(action.shape).to(agent.device)
-                noisy_action = action + expl_noise
+                    noisy_action = action + expl_noise
+
                 clipped_action = noisy_action.clamp(min=agent.action_low, max=agent.action_high)
         
             obs_, reward, terminated, truncated, info = env.step(clipped_action.cpu().numpy())
@@ -143,12 +182,12 @@ def main():
                 writer.add_scalar('Loss/Critic', agent.critic_loss[-1], t)
             if hasattr(agent, 'mean_q_value') and len(agent.mean_q_value) > 0:
                 writer.add_scalar('Training/Mean_Q_Value', agent.mean_q_value[-1], t)
-
+        
         if (any(terminated) or any(truncated)):
             env_idx = np.array(np.where(terminated | truncated)).squeeze()
             if env_idx.ndim == 0:  # Handle single env case
                 env_idx = np.array([env_idx])
-            
+
             # Log episode metrics to TensorBoard
             for idx in env_idx:
                 episode_reward = cumulative_reward[idx].item()
@@ -173,15 +212,17 @@ def main():
                 agent.save_checkpoint(save_dir)
                 torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
                 writer.add_scalar('Episode/Best_Return', BEST_SO_FAR, total_episodes)
-                # general_cfg['BEST_SO_FAR'] = BEST_SO_FAR
-                # with open(config_file, 'w') as f:
-                #     yaml.dump(general_cfg, f) # Save updated best return to config file this allows to keep best return across multiple training sessions
 
-
+            current_returns = cumulative_reward[env_idx].cpu().numpy().flatten()
+            return_normalizer.update(current_returns)
+            normalized_return = return_normalizer.normalize(current_returns.mean())
+            eta = max(0.0, 1.0 - normalized_return)
+            eta = min(1.0, eta)
+            
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
-        else:
-            obs = obs_.copy()
+    
+        obs = obs_.copy()
     
     writer.close()
     env.close()
