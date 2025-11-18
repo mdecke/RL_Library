@@ -29,7 +29,6 @@ args = parser.parse_args()
 
 def main():
     
-    # Set random seeds for reproducibility (exploration noise sampling --> line 90)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     
@@ -43,7 +42,7 @@ def main():
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
-    save_dir = os.path.join(args.path_to_saved_policy, args.task, args.algorithm)
+    save_dir = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
 
@@ -69,22 +68,27 @@ def main():
     
     # Tracking for tensorboard
     total_episodes = 0
+    update_starts = warm_up // args.num_envs
 
     if args.task == "Pendulum-v1":
         obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
     else:
         obs, _ = env.reset(seed=args.seed)  
+    
     for t in progress_bar:
         obs_tensor = torch.as_tensor(obs, dtype=torch.float32, device=agent.device)
         if obs_tensor.dim() == 1:
             obs_tensor = obs_tensor.unsqueeze(0)
-
+        if agent.preprocess_inputs:
+            normalized_obs = agent.obs_preprocessor(obs_tensor, train=True)
+        else:
+            normalized_obs = obs_tensor
+        
         with torch.no_grad():
             if t < warm_up or t < random_steps:
                 action = env.action_space.sample()
                 clipped_action = torch.as_tensor(action, dtype=torch.float32, device=agent.device)
             else:
-                normalized_obs = agent.obs_preprocessor(obs_tensor)
                 action = agent.policy.forward(normalized_obs)
                 expl_noise = noise.sample(action.shape).to(agent.device)
                 noisy_action = action + expl_noise
@@ -102,7 +106,7 @@ def main():
             agent.memory.add_sample(obs=obs_tensor, actions=clipped_action, next_obs=next_obs_tensor, rewards=reward_tensor, done=terminated_tensor)
 
         
-        if (t >= warm_up) and (agent.memory.filled_lines >= general_cfg['memory']['batch_size']):
+        if (t >= update_starts) and (agent.memory.filled_lines >= general_cfg['memory']['batch_size']):
             agent.update()
             
             # Log training metrics to TensorBoard
@@ -135,7 +139,8 @@ def main():
                 })
             
             avg_return.append(torch.mean(cumulative_reward[env_idx,:].cpu()))
-            best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
+            # best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
+            best_ending = avg_return[-1] 
             if best_ending >= BEST_SO_FAR:
                 BEST_SO_FAR = best_ending
                 agent.save_checkpoint(save_dir)
@@ -148,10 +153,6 @@ def main():
 
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
-            if args.task == "Pendulum-v1":
-                obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
-            else:
-                obs, _ = env.reset(seed=args.seed)
         else:
             obs = obs_.copy()
     

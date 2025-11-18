@@ -71,9 +71,10 @@ def print_model_summary(model:nn.Module, input_size:Tuple[int])->None:
     summary(model, input_size=input_size)
     
 
-def load_scaler(size:int, scaler_filepath: str):
-    scaler = RunningStandardScaler(size=size)
-    scaler.load_state_dict(torch.load(scaler_filepath))
+
+def load_scaler(size:int, scaler_filepath: str, device='cpu'):
+    scaler = RunningStandardScaler(size=size, device=device)
+    scaler.load_state_dict(torch.load(scaler_filepath, map_location=device))
     return scaler
 
 def load_file(filepath: str) -> pd.DataFrame:
