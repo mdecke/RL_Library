@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 import yaml
 
 import agents
-from base_classes.utils import load_config, get_noise_model
+from base_classes.utils import load_config, get_noise_model, ReturnNormalizer
 
 
 parser = argparse.ArgumentParser(description='Train or test TD3 agent on a given environment')
@@ -26,41 +26,6 @@ parser.add_argument('--seed', type=int, default=42, help='Random seed for reprod
 parser.add_argument('--expert_guidance', type=str, choices=["mle","gmm","cnf"], default=None, help='Type of expert to use for guidance (if any)')
 args = parser.parse_args()
 
-class ReturnNormalizer:
-    """Normalize episodic returns to [-1, 1] range for exploration control"""
-    def __init__(self, clip=3.0):
-        self.mean = 0.0
-        self.var = 1.0
-        self.count = 0
-        self.clip = clip  # clip to ±clip std devs
-    
-    def update(self, returns):
-        """Update with batch of returns (can be single value or list)"""
-        if isinstance(returns, (int, float)):
-            returns = [returns]
-        returns = np.array(returns)
-        
-        batch_mean = np.mean(returns)
-        batch_var = np.var(returns)
-        batch_count = len(returns)
-        
-        delta = batch_mean - self.mean
-        total_count = self.count + batch_count
-        
-        self.mean += delta * batch_count / total_count
-        self.var = (self.count * self.var + batch_count * batch_var + 
-                    delta**2 * self.count * batch_count / total_count) / total_count
-        self.count = total_count
-    
-    def normalize(self, episodic_return):
-        """Normalize to [-1, 1] range"""
-        if self.count < 5:  # Not enough data yet
-            return 0.0
-        
-        std = np.sqrt(self.var) + 1e-8
-        normalized = (episodic_return - self.mean) / std
-        clipped = np.clip(normalized, -self.clip, self.clip)
-        return clipped / self.clip  # scale to [-1, 1]
 
 def main():
     
@@ -129,6 +94,8 @@ def main():
 
     return_normalizer = ReturnNormalizer(clip=3.0)
     eta = 0.0
+    eta_smoothing = 0.95  # EMA smoothing factor for eta (higher = more smoothing)
+    max_eta_change = 0.05  # Maximum change in eta per episode update
     
     if args.task == "Pendulum-v1":
         obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
@@ -216,8 +183,16 @@ def main():
             current_returns = cumulative_reward[env_idx].cpu().numpy().flatten()
             return_normalizer.update(current_returns)
             normalized_return = return_normalizer.normalize(current_returns.mean())
-            eta = max(0.0, 1.0 - normalized_return)
-            eta = min(1.0, eta)
+            
+            new_eta = max(0.0, 1.0 - normalized_return)
+            new_eta = min(1.0, new_eta)
+        
+            new_eta = np.clip(new_eta, eta - max_eta_change, eta + max_eta_change)
+            eta = eta_smoothing * eta + (1 - eta_smoothing) * new_eta
+            
+            # Log eta to TensorBoard
+            if args.expert_guidance is not None:
+                writer.add_scalar('Guidance/Eta', eta, total_episodes)
             
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
