@@ -113,8 +113,13 @@ def main():
         
         with torch.no_grad():
             if t < warm_up or t < random_steps:
-                action = env.action_space.sample()
-                clipped_action = torch.as_tensor(action, dtype=torch.float32, device=agent.device)
+                if args.expert_guidance is not None:
+                    # Use expert action during warm-up if expert guidance is enabled
+                    action = expert.most_likely_component(obs_tensor)  # normalization handled by expert
+                    clipped_action = action.clamp(min=agent.action_low, max=agent.action_high)
+                else:
+                    action = env.action_space.sample()
+                    clipped_action = torch.as_tensor(action, dtype=torch.float32, device=agent.device)
             else:
                 action = agent.policy.forward(normalized_obs)
                 if expert is not None:
