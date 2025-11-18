@@ -222,3 +222,39 @@ def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
     print(f"Average Episode Reward: {avg_reward:.2f} ± {std_reward:.2f}")
     
     return episode_rewards, all_instantaneous_rewards, all_cumulative_rewards
+
+class ReturnNormalizer:
+    """Normalize episodic returns to [-1, 1] range for exploration control"""
+    def __init__(self, clip=3.0):
+        self.mean = 0.0
+        self.var = 1.0
+        self.count = 0
+        self.clip = clip  # clip to ±clip std devs
+    
+    def update(self, returns):
+        """Update with batch of returns (can be single value or list)"""
+        if isinstance(returns, (int, float)):
+            returns = [returns]
+        returns = np.array(returns)
+        
+        batch_mean = np.mean(returns)
+        batch_var = np.var(returns)
+        batch_count = len(returns)
+        
+        delta = batch_mean - self.mean
+        total_count = self.count + batch_count
+        
+        self.mean += delta * batch_count / total_count
+        self.var = (self.count * self.var + batch_count * batch_var + 
+                    delta**2 * self.count * batch_count / total_count) / total_count
+        self.count = total_count
+    
+    def normalize(self, episodic_return):
+        """Normalize to [-1, 1] range"""
+        if self.count < 5:  # Not enough data yet
+            return 0.0
+        
+        std = np.sqrt(self.var) + 1e-8
+        normalized = (episodic_return - self.mean) / std
+        clipped = np.clip(normalized, -self.clip, self.clip)
+        return clipped / self.clip  # scale to [-1, 1]
