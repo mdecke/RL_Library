@@ -2,7 +2,9 @@
 
 A reinforcement learning library for continuous control tasks using PyTorch and Gymnasium.
 
-**Supported Algorithms:** TD3, DDPG, SAC, TDn
+**Supported Algorithms:** DDPG, TDn
+
+**Expert Guidance:** MLE, GMM, CNF-based expert models for guided policy learning
 
 ## Installation
 
@@ -25,9 +27,29 @@ python scripts/train.py \
     --task Pendulum-v1 \
     --num_envs 10 \
     --max_iterations 7500 \
-    --path_to_saved_policy ./saved \
-    --algorithm TD3
+    --algorithm tdn
 ```
+
+### Train with Expert Guidance
+
+First, fit an expert model on demonstration data:
+
+```bash
+python scripts/expert_fitting.py \
+    --task Ant-v5 \
+    --expert_type mle
+```
+
+Then train with expert guidance:
+
+```bash
+python scripts/train.py \
+    --task Ant-v5 \
+    --algorithm tdn \
+    --expert_guidance mle
+```
+
+**Expert Types:** `mle` (Maximum Likelihood), `gmm` (Gaussian Mixture Model), `cnf` (Conditional Normalizing Flow)
 
 ### Validate
 
@@ -53,12 +75,15 @@ Open http://localhost:6006 in your browser.
 - **Episode/Return**: Main performance metric (higher is better)
 - **Loss/Policy**: Actor loss
 - **Loss/Critic**: Q-function loss
+- **Guidance/Eta**: Expert guidance weight (0=full expert, 1=full RL policy)
 
 ## Output
 
-- **Models**: `saved/{task}/{algorithm}/`
-- **Logs**: `logs/{task}/{algorithm}/`
-- **Videos**: `logs/{task}/{algorithm}/`
+- **RL Models**: `saved/{task}/{algorithm}/RL_models/`
+- **Expert-Guided Models**: `saved/{task}/{algorithm}/EGOP_models/`
+- **Expert Models**: `saved/{task}/expert/`
+- **Logs**: `logs/{task}/{algorithm}/training_stats/` or `/guided_training_stats/`
+- **Videos**: `logs/{task}/{algorithm}/validation_stats/`
 
 ## Wiki
 
