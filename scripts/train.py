@@ -96,6 +96,9 @@ def main():
     eta = 0.0
     eta_smoothing = 0.95  # EMA smoothing factor for eta (higher = more smoothing)
     max_eta_change = 0.05  # Maximum change in eta per episode update
+
+    warm_up_done = 0
+    learn_has_started = 0
     
     if args.task == "Pendulum-v1":
         obs, _ = env.reset(seed=args.seed, options={'x_init': np.pi, 'y_init': 8.0})
@@ -121,6 +124,9 @@ def main():
                     action = env.action_space.sample()
                     clipped_action = torch.as_tensor(action, dtype=torch.float32, device=agent.device)
             else:
+                if warm_up_done == 0:
+                    print("[INFO]: Warm-up phase completed. Starting policy-based actions.")
+                    warm_up_done = 1
                 action = agent.policy.forward(normalized_obs)
                 if expert is not None:
                     # expl_noise = expert.sample(obs_tensor)
@@ -146,6 +152,9 @@ def main():
         
         if (t >= update_starts) and (agent.memory.filled_lines >= general_cfg['memory']['batch_size']):
             agent.update()
+            if learn_has_started == 0:
+                print("[INFO]: Learning updates have started.")
+                learn_has_started = 1
             
             # Log training metrics to TensorBoard
             if len(agent.policy_loss) > 0:
@@ -183,7 +192,7 @@ def main():
                 BEST_SO_FAR = best_ending
                 agent.save_checkpoint(save_dir)
                 torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
-                writer.add_scalar('Episode/Best_Return', BEST_SO_FAR, total_episodes)
+                writer.add_scalar('Episode/Best_Avg_Return', BEST_SO_FAR, total_episodes)
 
             current_returns = cumulative_reward[env_idx].cpu().numpy().flatten()
             return_normalizer.update(current_returns)
