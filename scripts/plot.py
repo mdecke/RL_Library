@@ -42,6 +42,12 @@ def compute_cycle_stats(df: pd.DataFrame, cycle_col: str, value_col: str) -> pd.
     out["std"] = out.std(axis=1, skipna=True)
     out["upper"] = out["mean"] + out["std"]
     out["lower"] = out["mean"] - out["std"]
+    
+    # Preserve step information if available
+    if "step" in df.columns:
+        first_cycle = df[cycle_col].dropna().unique()[0]
+        out["step"] = df[df[cycle_col] == first_cycle]["step"].dropna().reset_index(drop=True)
+    
     return out
 
 
@@ -343,16 +349,16 @@ def main():
     # Plot returns
     ax = axes[0]
     if regular_returns_stats is not None:
-        x = np.arange(len(regular_returns_stats["mean"]))
-        ax.plot(x, regular_returns_stats["mean"], label="Regular Training", color='blue', linewidth=2)
+        x = regular_returns_stats["step"] if "step" in regular_returns_stats.columns else np.arange(len(regular_returns_stats["mean"]))
+        ax.plot(x, regular_returns_stats["mean"], label="Regular Training", color='#66ccee', linewidth=1.5, linestyle='-')
         ax.fill_between(x, regular_returns_stats["lower"], regular_returns_stats["upper"], 
-                        alpha=0.15, color='blue')
+                        alpha=0.2, color='#66ccee')
     
     if guided_returns_stats is not None:
-        x = np.arange(len(guided_returns_stats["mean"]))
-        ax.plot(x, guided_returns_stats["mean"], label="Expert-Guided Training", color='red', linewidth=2)
+        x = guided_returns_stats["step"] if "step" in guided_returns_stats.columns else np.arange(len(guided_returns_stats["mean"]))
+        ax.plot(x, guided_returns_stats["mean"], label="Expert-Guided Training", color='#ee6677', linewidth=1.5, linestyle='-.')
         ax.fill_between(x, guided_returns_stats["lower"], guided_returns_stats["upper"], 
-                        alpha=0.15, color='red')
+                        alpha=0.2, color='#ee6677')
     
     ax.set_ylabel("Return")
     ax.set_xlabel("Training Steps")
@@ -364,16 +370,16 @@ def main():
     # Plot policy loss
     ax = axes[1]
     if regular_policy_stats is not None:
-        x = np.arange(len(regular_policy_stats["mean"]))
-        ax.plot(x, regular_policy_stats["mean"], label="Regular Training", color='blue', linewidth=2)
+        x = regular_policy_stats["step"] if "step" in regular_policy_stats.columns else np.arange(len(regular_policy_stats["mean"]))
+        ax.plot(x, regular_policy_stats["mean"], label="Regular Training", color='#66ccee', linewidth=1.5, linestyle='-')
         ax.fill_between(x, regular_policy_stats["lower"], regular_policy_stats["upper"], 
-                        alpha=0.15, color='blue')
+                        alpha=0.2, color='#66ccee')
     
     if guided_policy_stats is not None:
-        x = np.arange(len(guided_policy_stats["mean"]))
-        ax.plot(x, guided_policy_stats["mean"], label="Expert-Guided Training", color='red', linewidth=2)
+        x = guided_policy_stats["step"] if "step" in guided_policy_stats.columns else np.arange(len(guided_policy_stats["mean"]))
+        ax.plot(x, guided_policy_stats["mean"], label="Expert-Guided Training", color="#ee6677", linewidth=1.5, linestyle='-.')
         ax.fill_between(x, guided_policy_stats["lower"], guided_policy_stats["upper"], 
-                        alpha=0.15, color='red')
+                        alpha=0.2, color="#ee6677")
     
     ax.set_ylabel("Policy Loss")
     ax.set_xlabel("Training Steps")
@@ -384,16 +390,16 @@ def main():
     # Plot Q loss
     ax = axes[2]
     if regular_q_stats is not None:
-        x = np.arange(len(regular_q_stats["mean"]))
-        ax.plot(x, regular_q_stats["mean"], label="Regular Training", color='blue', linewidth=2)
+        x = regular_q_stats["step"] if "step" in regular_q_stats.columns else np.arange(len(regular_q_stats["mean"]))
+        ax.plot(x, regular_q_stats["mean"], label="Regular Training", color='#66ccee', linewidth=1.5, linestyle='-')
         ax.fill_between(x, regular_q_stats["lower"], regular_q_stats["upper"], 
-                        alpha=0.15, color='blue')
+                        alpha=0.2, color='#66ccee')
     
     if guided_q_stats is not None:
-        x = np.arange(len(guided_q_stats["mean"]))
-        ax.plot(x, guided_q_stats["mean"], label="Expert-Guided Training", color='red', linewidth=2)
+        x = guided_q_stats["step"] if "step" in guided_q_stats.columns else np.arange(len(guided_q_stats["mean"]))
+        ax.plot(x, guided_q_stats["mean"], label="Expert-Guided Training", color='#ee6677', linewidth=1.5, linestyle='-.')
         ax.fill_between(x, guided_q_stats["lower"], guided_q_stats["upper"], 
-                        alpha=0.15, color='red')
+                        alpha=0.2, color='#ee6677')
     
     ax.set_ylabel("Q Loss")
     ax.set_xlabel("Training Steps")
