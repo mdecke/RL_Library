@@ -8,29 +8,31 @@ ALGO="tdn" # Options: ddpg, tdn, sac
 SEEDS=(42)
 
 for SEED in "${SEEDS[@]}"; do
-    # echo
-    # echo "=== Training $TASK with $ALGO (seed=$SEED) ==="
-    # echo
-    # python scripts/train.py \
-    #     --task $TASK \
-    #     --num_envs 10 \
-    #     --max_iterations 100000 \
-    #     --path_to_saved_policy ./saved \
-    #     --algorithm $ALGO \
-    #     --seed $SEED
+    echo
+    echo "=== Training $TASK with $ALGO (seed=$SEED) ==="
+    echo
+    python scripts/train.py \
+        --task $TASK \
+        --num_envs 10 \
+        --max_iterations 100000 \
+        --path_to_saved_policy ./saved \
+        --algorithm $ALGO \
+        --seed $SEED \
+        --expert_guidance cnf
     
     echo
     echo "=== Validating $TASK with $ALGO (seed=$SEED) ==="
     echo
     python scripts/validate.py \
         --task $TASK \
-        --num_envs 100 \
+        --num_envs 3 \
         --max_iterations 1000 \
         --path_to_saved_policy ./saved \
         --algorithm $ALGO \
         --video \
-        --video_steps 300 \
-        --seed $SEED
+        --video_steps 1000 \
+        --seed $SEED \
+        --plot
 done
 
 echo
@@ -40,5 +42,5 @@ python scripts/plot.py \
     --algorithm $ALGO \
     --log_dir ./logs \
     --save_dir ./plots \
-    --smoothing_window 5 \
+    --smoothing_window 20 \
     --show
