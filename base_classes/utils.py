@@ -11,6 +11,7 @@ from torchinfo import summary
 import yaml
 
 import gymnasium as gym
+from gymnasium.wrappers import RecordVideo
 
 from skrl.resources.preprocessors.torch import RunningStandardScaler
 
@@ -177,7 +178,7 @@ class EarlyStopping:
             model.load_state_dict(self.best_model_state)
 
 
-def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
+def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42, video=False):
     """Evaluate expert policy in the environment with rollouts."""
     env = gym.make(env_name)
     
@@ -185,8 +186,27 @@ def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
     all_instantaneous_rewards = []
     all_cumulative_rewards = []
     
+    env_render = None  # Track video recording environment
+    
     for episode in range(n_episodes):
-        obs, info = env.reset(seed=seed + episode)
+        if video and episode == 0:
+            print("\n[INFO]: Recording validation video...")
+            video_folder = os.path.join(f"logs/{env_name}/tdn", "expert_rollout_rendering")
+            if not os.path.exists(video_folder):
+                os.makedirs(video_folder, exist_ok=True)
+        
+            env_render = gym.make(env_name, render_mode="rgb_array")
+            env_render = RecordVideo(
+                env_render, 
+                video_folder=video_folder,
+                episode_trigger=lambda ep: ep == 0,
+                name_prefix=f"seed_{seed}"
+            )
+            env_to_use = env_render
+        else:
+            env_to_use = env
+        
+        obs, info = env_to_use.reset(seed=seed + episode)
         done = False
         truncated = False
         episode_reward = 0
@@ -201,7 +221,7 @@ def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
                 action = expert.most_likely_component(obs_tensor).squeeze(0).cpu().numpy()
             
             # Step environment
-            obs, reward, done, truncated, info = env.step(action)
+            obs, reward, done, truncated, info = env_to_use.step(action)
             
             episode_reward += reward
             cumulative_reward += reward
@@ -213,7 +233,13 @@ def evaluate_expert_rollout(expert, env_name, n_episodes=5, seed=42):
         all_cumulative_rewards.append(cumulative_rewards)
         
         print(f"Episode {episode + 1}/{n_episodes}: Reward = {episode_reward:.2f}")
+        
+        # Close video environment after first episode
+        if video and episode == 0 and env_render is not None:
+            env_render.close()
+            print(f"[INFO]: Video saved to {video_folder}")
     
+    # Close regular environment
     env.close()
     
     avg_reward = np.mean(episode_rewards)

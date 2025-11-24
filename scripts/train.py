@@ -23,6 +23,7 @@ parser.add_argument('--path_to_saved_policy', type=str, help='Path to the saved 
 parser.add_argument('--algorithm', type=str, default='tdn', help='RL algorithm to use')
 parser.add_argument('--device', type=str, default='cpu', help='Device to use for training (cpu or cuda)')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+parser.add_argument('--save_method', type=str, choices=['best', 'last'], default='last', help='Method to save the model')
 parser.add_argument('--expert_guidance', type=str, choices=["mle","gmm","cnf"], default=None, help='Type of expert to use for guidance (if any)')
 args = parser.parse_args()
 
@@ -188,7 +189,9 @@ def main():
             avg_return.append(torch.mean(cumulative_reward[env_idx,:].cpu()))
             # best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
             best_ending = avg_return[-1] 
-            if best_ending >= BEST_SO_FAR:
+            
+            # Save best model if using 'best' save method
+            if args.save_method == 'best' and best_ending >= BEST_SO_FAR:
                 BEST_SO_FAR = best_ending
                 agent.save_checkpoint(save_dir)
                 torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
@@ -210,8 +213,15 @@ def main():
             
             cumulative_reward[env_idx,:] = 0.0
             episode_lengths[env_idx] = 0
-    
+        
         obs = obs_.copy()
+
+    
+    # Save final model if using 'last' save method
+    if args.save_method == 'last':
+        agent.save_checkpoint(save_dir)
+        torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
+        print(f"[INFO]: Saved final model to {save_dir}")
     
     writer.close()
     env.close()
