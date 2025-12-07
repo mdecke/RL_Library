@@ -8,9 +8,10 @@ import gymnasium as gym
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
+from scipy import signal
 
 from agents import create_expert
-from base_classes.utils import load_config, make_data_frame, evaluate_expert_rollout
+from base_classes.utils import load_config, make_data_frame, evaluate_expert_rollout, save_model
 from plot import plot_prediction_accuracy, plot_action_predictions, plot_rollout_rewards
 
 
@@ -95,6 +96,47 @@ def main():
     states = expert_data[state_cols].values.astype(np.float32)
     actions = expert_data[action_cols].values.astype(np.float32)
 
+    # Butterworth low-pass filter
+    sampling_freq = 1/0.05
+    nyquist_freq = 0.5 * sampling_freq
+    normalized_cutoff = 2 / nyquist_freq
+    low_cutoff = 0.6 / nyquist_freq
+    high_cutoff = 2.5 / nyquist_freq
+    b, a = signal.butter(10, [low_cutoff, high_cutoff], btype='bandpass')
+    filtered_acts = signal.filtfilt(b, a, actions, axis=0)
+    
+    # exponential moving average filter
+    # alpha = 0.1
+    # filtered_acts = np.zeros_like(actions)
+    # filtered_acts[0] = actions[0]
+    # for t in range(1, len(actions)):
+    #     filtered_acts[t] = alpha * actions[t] + (1 - alpha) * filtered_acts[t-1]
+    
+    # WLS filter
+    # filtered_states = signal.savgol_filter(states, window_length=7, polyorder=1, axis=0)
+    # filtered_acts = signal.savgol_filter(actions, window_length=11, polyorder=3, axis=0)
+
+    
+
+    # fig, ax = plt.subplots(2, 1, figsize=(10, 6))
+    # ax[0].plot(actions[:100, 0], label='Original Action', alpha=0.5)
+    # ax[0].plot(filtered_acts[:100, 0], label='Filtered Action', alpha=0.8)
+    # ax[0].set_title('Action Before and After Low-Pass Filtering')
+    # ax[0].set_xlabel('Time Step')
+    # ax[0].set_ylabel('Action Value')
+    # ax[0].legend()
+
+    # ax[1].plot(states[:100, 0], label='Original State', alpha=0.5)
+    # ax[1].plot(filtered_states[:100, 0], label='Filtered State', alpha=0.8)
+    # ax[1].set_title('State Before and After Low-Pass Filtering')
+    # ax[1].set_xlabel('Time Step')
+    # ax[1].set_ylabel('State Value')
+    # ax[1].legend()
+    
+    # plt.show()
+
+    # quit()
+
     cfg["obs_dim"] = states.shape[1]
     cfg["action_dim"] = actions.shape[1]
     
@@ -112,11 +154,17 @@ def main():
     train_idx = index[int(cfg["validation_split"] * len(index))+int(cfg["test_split"] * len(index)):]
 
     train_obss = torch.tensor(states[train_idx], dtype=torch.float32).to(args.device)
-    train_acts = torch.tensor(actions[train_idx], dtype=torch.float32).to(args.device)
+    # train_obss = torch.tensor(filtered_states[train_idx], dtype=torch.float32).to(args.device)
+    # train_acts = torch.tensor(actions[train_idx], dtype=torch.float32).to(args.device)
+    train_acts = torch.tensor(filtered_acts[train_idx], dtype=torch.float32).to(args.device)
     test_obss = torch.tensor(states[test_idx], dtype=torch.float32).to(args.device)
-    test_acts = torch.tensor(actions[test_idx], dtype=torch.float32).to(args.device)
+    # test_obss = torch.tensor(filtered_states[test_idx], dtype=torch.float32).to(args.device)
+    # test_acts = torch.tensor(actions[test_idx], dtype=torch.float32).to(args.device)
+    test_acts = torch.tensor(filtered_acts[test_idx], dtype=torch.float32).to(args.device)
     val_obss = torch.tensor(states[val_idx], dtype=torch.float32).to(args.device)
-    val_acts = torch.tensor(actions[val_idx], dtype=torch.float32).to(args.device)
+    # val_obss = torch.tensor(filtered_states[val_idx], dtype=torch.float32).to(args.device)
+    # val_acts = torch.tensor(actions[val_idx], dtype=torch.float32).to(args.device)
+    val_acts = torch.tensor(filtered_acts[val_idx], dtype=torch.float32).to(args.device)
 
     # Apply boundary augmentation if enabled in config
     if cfg.get("augment_boundaries", False):
@@ -144,7 +192,8 @@ def main():
     
     train_losses, val_losses = expert.train(train_loader, val_loader)
     test_loss = expert.validate(test_loader)
-    expert.save(args.path_to_saved_expert)
+    save_model(expert, "expert", args.path_to_saved_expert, obs_dim=cfg["obs_dim"])
+    # expert.save(args.path_to_saved_expert)
 
     expert.eval()
     with torch.no_grad():
@@ -157,6 +206,9 @@ def main():
     plot_action_predictions(test_acts.to("cpu").numpy(), predicted_actions.to("cpu").numpy(), test_acts.shape[1],plots_dir)
     figures = plot_prediction_accuracy(test_acts.to("cpu").numpy(), predicted_actions.to("cpu").numpy(), test_acts.shape[1])
 
+    # plot_action_predictions(test_acts.to("cpu").numpy(), filtered_test_acts, test_acts.shape[1],plots_dir)
+    # figures = plot_prediction_accuracy(test_acts.to("cpu").numpy(), filtered_test_acts, test_acts.shape[1])
+
     for fig_idx, fig in enumerate(figures):
         filename = f"action_predictions_fig{fig_idx+1}.png" if len(figures) > 1 else "action_predictions.png"
         fig.savefig(os.path.join(plots_dir, filename), dpi=300, bbox_inches='tight')
@@ -167,7 +219,7 @@ def main():
     print("Evaluating Expert Policy with Rollouts")
     print("="*50)
     episode_rewards, inst_rewards, cum_rewards = evaluate_expert_rollout(
-        expert, args.env_name, n_episodes=args.n_eval_episodes, seed=args.seed
+        expert, args.env_name, n_episodes=args.n_eval_episodes, seed=args.seed, video=True
     )
     plot_rollout_rewards(inst_rewards, cum_rewards, plots_dir)
 
