@@ -289,5 +289,9 @@ class ReturnNormalizer:
 def save_model(model:nn.Module, model_type:str, save_dir:str, obs_dim:int) -> None:
     save_path = os.path.join(save_dir, f"scripted_{model_type}.pt")
     example_input = torch.randn(1, obs_dim)
-    traced_model = torch.jit.trace(model, example_input)
+    if hasattr(model, 'n_flows'):
+        z_example = torch.randn(1, model.action_dim)
+        traced_model = torch.jit.trace(model, (z_example, example_input))
+    else:
+        traced_model = torch.jit.trace(model, example_input)
     torch.jit.save(traced_model, save_path)
