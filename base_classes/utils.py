@@ -284,3 +284,10 @@ class ReturnNormalizer:
         normalized = (episodic_return - self.mean) / std
         clipped = np.clip(normalized, -self.clip, self.clip)
         return clipped / self.clip  # scale to [-1, 1]
+
+
+def save_model(model:nn.Module, model_type:str, save_dir:str, obs_dim:int) -> None:
+    save_path = os.path.join(save_dir, f"scripted_{model_type}.pt")
+    example_input = torch.randn(1, obs_dim)
+    traced_model = torch.jit.trace(model, example_input)
+    torch.jit.save(traced_model, save_path)
