@@ -154,16 +154,10 @@ def main():
     train_idx = index[int(cfg["validation_split"] * len(index))+int(cfg["test_split"] * len(index)):]
 
     train_obss = torch.tensor(states[train_idx], dtype=torch.float32).to(args.device)
-    # train_obss = torch.tensor(filtered_states[train_idx], dtype=torch.float32).to(args.device)
-    # train_acts = torch.tensor(actions[train_idx], dtype=torch.float32).to(args.device)
     train_acts = torch.tensor(filtered_acts[train_idx], dtype=torch.float32).to(args.device)
     test_obss = torch.tensor(states[test_idx], dtype=torch.float32).to(args.device)
-    # test_obss = torch.tensor(filtered_states[test_idx], dtype=torch.float32).to(args.device)
-    # test_acts = torch.tensor(actions[test_idx], dtype=torch.float32).to(args.device)
     test_acts = torch.tensor(filtered_acts[test_idx], dtype=torch.float32).to(args.device)
     val_obss = torch.tensor(states[val_idx], dtype=torch.float32).to(args.device)
-    # val_obss = torch.tensor(filtered_states[val_idx], dtype=torch.float32).to(args.device)
-    # val_acts = torch.tensor(actions[val_idx], dtype=torch.float32).to(args.device)
     val_acts = torch.tensor(filtered_acts[val_idx], dtype=torch.float32).to(args.device)
 
     # Apply boundary augmentation if enabled in config
@@ -193,7 +187,6 @@ def main():
     train_losses, val_losses = expert.train(train_loader, val_loader)
     test_loss = expert.validate(test_loader)
     save_model(expert, "expert", args.path_to_saved_expert, obs_dim=cfg["obs_dim"])
-    # expert.save(args.path_to_saved_expert)
 
     expert.eval()
     with torch.no_grad():
@@ -205,9 +198,6 @@ def main():
     
     plot_action_predictions(test_acts.to("cpu").numpy(), predicted_actions.to("cpu").numpy(), test_acts.shape[1],plots_dir)
     figures = plot_prediction_accuracy(test_acts.to("cpu").numpy(), predicted_actions.to("cpu").numpy(), test_acts.shape[1])
-
-    # plot_action_predictions(test_acts.to("cpu").numpy(), filtered_test_acts, test_acts.shape[1],plots_dir)
-    # figures = plot_prediction_accuracy(test_acts.to("cpu").numpy(), filtered_test_acts, test_acts.shape[1])
 
     for fig_idx, fig in enumerate(figures):
         filename = f"action_predictions_fig{fig_idx+1}.png" if len(figures) > 1 else "action_predictions.png"
