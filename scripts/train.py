@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 import yaml
 
 import agents
-from base_classes.utils import load_config, get_noise_model, ReturnNormalizer
+from base_classes.utils import load_config, get_noise_model, ReturnNormalizer, save_model
 
 
 parser = argparse.ArgumentParser(description='Train or test TD3 agent on a given environment')
@@ -187,14 +187,13 @@ def main():
                 })
             
             avg_return.append(torch.mean(cumulative_reward[env_idx,:].cpu()))
-            # best_ending = torch.max(cumulative_reward[env_idx,:].cpu())
             best_ending = avg_return[-1] 
             
             # Save best model if using 'best' save method
             if args.save_method == 'best' and best_ending >= BEST_SO_FAR:
                 BEST_SO_FAR = best_ending
-                agent.save_checkpoint(save_dir)
-                torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
+                save_model(agent.policy, "policy", save_dir, obs_dim=env.single_observation_space.shape[0])
+                save_model(agent.obs_preprocessor, "obs_preprocessor", save_dir, obs_dim=env.single_observation_space.shape[0])
                 writer.add_scalar('Episode/Best_Avg_Return', BEST_SO_FAR, total_episodes)
 
             current_returns = cumulative_reward[env_idx].cpu().numpy().flatten()
@@ -216,11 +215,10 @@ def main():
         
         obs = obs_.copy()
 
-    
     # Save final model if using 'last' save method
     if args.save_method == 'last':
-        agent.save_checkpoint(save_dir)
-        torch.save(agent.obs_preprocessor.state_dict(), os.path.join(save_dir, "obs_preprocessor.pth"))
+        save_model(agent.policy, "policy", save_dir, obs_dim=env.single_observation_space.shape[0])
+        save_model(agent.obs_preprocessor, "obs_preprocessor", save_dir, obs_dim=env.single_observation_space.shape[0])
         print(f"[INFO]: Saved final model to {save_dir}")
     
     writer.close()

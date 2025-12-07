@@ -46,26 +46,16 @@ def main():
     trajs = {"obss":[], "acts":[], "rews":[], "terms":[]}
 
     env = gym.make_vec(args.task, num_envs=args.num_envs)
-    obs_dim = env.single_observation_space.shape[0] * general_cfg["agent"]["state_history"]
     action_dim = env.single_action_space.shape[0] * general_cfg["agent"]["action_history"]
-    policy = Actor(input_dim=obs_dim,
-                   output_dim=action_dim,
-                   action_limit=float(env.single_action_space.high[0]),
-                   hidden_dims=general_cfg['models']["policy"]['hidden_layers'],
-                   lr=general_cfg['models']["policy"]['lr'],
-                   activation_fct=general_cfg['models']["policy"]['activation_fct'],
-                   stochastic=general_cfg['models']["policy"]['stochastic'],
-                   seed=args.seed).to(args.device)
 
-    print("[INFO]: Loading trained model")
-    policy.load(filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "best_policy.pth"), 
-                map_location=args.device)
+    policy_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_policy.pt")
+    policy = torch.jit.load(policy_filepath, map_location=args.device)
+    policy.eval()
     scaling = general_cfg["agent"].get("preprocess_inputs", None)
     if scaling is not None:
         print("[INFO]: Loading observation preprocessor scaler")
-        scaler = load_scaler(size=obs_dim,
-                            scaler_filepath=os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "obs_preprocessor.pth"),
-                            device=args.device)
+        scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_obs_preprocessor.pt")
+        scaler = torch.jit.load(scaler_filepath, map_location=args.device)
         scaler.eval()
     
     cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
@@ -80,7 +70,7 @@ def main():
         with torch.no_grad():
             obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
             if scaling is not None:
-                normalized_obs = scaler(obs_tensor, train=False)
+                normalized_obs = scaler(obs_tensor)
             else:
                 normalized_obs = obs_tensor
             action = policy(normalized_obs)
@@ -158,7 +148,7 @@ def main():
             with torch.no_grad():
                 obs_tensor = torch.tensor(obs, dtype=torch.float32, device=args.device)
                 if scaling is not None:
-                    normalized_obs = scaler(obs_tensor, train=False)
+                    normalized_obs = scaler(obs_tensor)
                 else:
                     normalized_obs = obs_tensor
                 action = policy(normalized_obs)
