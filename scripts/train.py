@@ -75,9 +75,9 @@ def main():
         expert_cfg['expert_domain'] = 'time'
         expert_cfg["obs_dim"] = env.single_observation_space.shape[0]
         expert_cfg["action_dim"] = env.single_action_space.shape[0]
-        expert = agents.create_expert(args.expert_guidance, expert_cfg)
-        expert_model_path = os.path.join('saved', args.task, 'expert')
-        expert.load(expert_model_path)
+        expert_model_path = os.path.join('saved', args.task,'expert', 'scripted_expert.pt')
+        expert = torch.jit.load(expert_model_path, map_location=args.device)
+        expert.eval()
         print(f"[INFO]: Using {args.expert_guidance} expert for guidance during training.")
     else:
         expert = None
