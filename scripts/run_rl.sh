@@ -13,12 +13,13 @@ for SEED in "${SEEDS[@]}"; do
     echo
     python scripts/train.py \
         --task $TASK \
-        --num_envs 10 \
-        --max_iterations 100000 \
+        --num_envs 5 \
+        --max_iterations 15000 \
         --path_to_saved_policy ./saved \
         --algorithm $ALGO \
         --seed $SEED \
-        --expert_guidance cnf
+        --save_method last \
+        --expert_guidance cnf \
     
     echo
     echo "=== Validating $TASK with $ALGO (seed=$SEED) ==="
@@ -32,7 +33,8 @@ for SEED in "${SEEDS[@]}"; do
         --video \
         --video_steps 1000 \
         --seed $SEED \
-        --plot
+        --plot \
+
 done
 
 echo
