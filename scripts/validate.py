@@ -47,16 +47,24 @@ def main():
 
     env = gym.make_vec(args.task, num_envs=args.num_envs)
     action_dim = env.single_action_space.shape[0] * general_cfg["agent"]["action_history"]
-
-    policy_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_policy.pt")
+    scaling = general_cfg["agent"].get("preprocess_inputs", None)
+    
+    egop_policy = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "EGOP_models", "scripted_policy.pt")
+    if os.path.exists(egop_policy):
+        print("[INFO]: Loading Expert-Guided Observation Preprocessor scaler")
+        policy_filepath = egop_policy
+        scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "EGOP_models", "scripted_obs_preprocessor.pt")      
+    else:
+        policy_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_policy.pt")
+        scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_obs_preprocessor.pt")
+    
     policy = torch.jit.load(policy_filepath, map_location=args.device)
     policy.eval()
-    scaling = general_cfg["agent"].get("preprocess_inputs", None)
     if scaling is not None:
         print("[INFO]: Loading observation preprocessor scaler")
-        scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_obs_preprocessor.pt")
         scaler = torch.jit.load(scaler_filepath, map_location=args.device)
         scaler.eval()
+
     
     cumulative_reward = np.zeros((args.num_envs,), dtype=np.float32)
     episode_lengths = np.zeros((args.num_envs,), dtype=np.int32)
