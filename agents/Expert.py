@@ -555,8 +555,8 @@ class CNFExpert(nn.Module):
             self.obs_preprocessor.load_state_dict(torch.load(experts_preprocessor_path, map_location=self.device))
             print(f"[INFO]: Expert observation preprocessor loaded from {experts_preprocessor_path}")
 
+    @torch.jit.export
     def most_likely_component(self, inputs:torch.Tensor)->torch.Tensor:
-        self.eval()
         with torch.no_grad():
             if self.preprocess_inputs:
                 inputs = self.obs_preprocessor(inputs, train=False)
