@@ -257,32 +257,32 @@ class AffineCoupling(nn.Module):
 
     def forward(self, x, state):
         # x: (batch_size, action_dim), state: (batch_size, state_dim)
-        x_masked_feats = x[:, self.mask.bool()]
+        x_masked_feats = x[:, self.mask]
         h = torch.cat([x_masked_feats, state], dim=1)
         st = self.conditioner(h)
         s, t_shift = st.chunk(2, dim=1)
         s = torch.tanh(s) * 3.0
 
-        x_other = x[:, (~self.mask.bool())]
+        x_other = x[:, ~self.mask]
         y_other = x_other * torch.exp(s) + t_shift
 
         y = x.clone()
-        y[:, (~self.mask.bool())] = y_other
+        y[:, ~self.mask] = y_other
 
         log_det = s.sum(dim=1)
         return y, log_det
 
     def inverse(self, y, state):
-        y_masked_feats = y[:, self.mask.bool()]
+        y_masked_feats = y[:, self.mask]
         h = torch.cat([y_masked_feats, state], dim=1)
         st = self.conditioner(h)
         s, t_shift = st.chunk(2, dim=1)
         s = torch.tanh(s) * 3.0
 
-        y_other = y[:, (~self.mask.bool())]
+        y_other = y[:, ~self.mask]
         x_other = (y_other - t_shift) * torch.exp(-s)
 
         x = y.clone()
-        x[:, (~self.mask.bool())] = x_other
+        x[:, ~self.mask] = x_other
         log_det = -s.sum(dim=1)
         return x, log_det
