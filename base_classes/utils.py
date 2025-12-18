@@ -288,10 +288,21 @@ class ReturnNormalizer:
 
 def save_model(model:nn.Module, model_type:str, save_dir:str, obs_dim:int) -> None:
     save_path = os.path.join(save_dir, f"scripted_{model_type}.pt")
-    example_input = torch.randn(1, obs_dim)
-    if hasattr(model, 'n_flows'):
+    
+    # Use torch.jit.script for models with @torch.jit.export decorators (CNFExpert)
+    # Use torch.jit.trace for simpler models
+    if hasattr(model, 'most_likely_component') and hasattr(model, 'couplings'):
+        # CNFExpert has @torch.jit.export, use script instead of trace
+        model.eval()
+        scripted_model = torch.jit.script(model)
+    elif hasattr(model, 'n_flows'):
+        # For other flow-based models without @torch.jit.export
+        example_input = torch.randn(1, obs_dim)
         z_example = torch.randn(1, model.action_dim)
-        traced_model = torch.jit.trace(model, (z_example, example_input))
+        scripted_model = torch.jit.trace(model, (z_example, example_input))
     else:
-        traced_model = torch.jit.trace(model, example_input)
-    torch.jit.save(traced_model, save_path)
+        # Standard models (Actor, etc.)
+        example_input = torch.randn(1, obs_dim)
+        scripted_model = torch.jit.trace(model, example_input)
+    
+    torch.jit.save(scripted_model, save_path)
