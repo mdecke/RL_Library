@@ -14,7 +14,7 @@ for SEED in "${SEEDS[@]}"; do
     python scripts/train.py \
         --task $TASK \
         --num_envs 5 \
-        --max_iterations 15000 \
+        --max_iterations 150000 \
         --path_to_saved_policy ./saved \
         --algorithm $ALGO \
         --seed $SEED \
