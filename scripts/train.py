@@ -167,6 +167,7 @@ def main():
         
         if (any(terminated) or any(truncated)):
             env_idx = np.array(np.where(terminated | truncated)).squeeze()
+            print(f"[DEBUG]: at least one environment terminated or truncated: {len(env_idx)}")
             if env_idx.ndim == 0:  # Handle single env case
                 env_idx = np.array([env_idx])
 
@@ -174,17 +175,18 @@ def main():
             for idx in env_idx:
                 episode_reward = cumulative_reward[idx].item()
                 episode_len = episode_lengths[idx].item()
-                
+
                 writer.add_scalar('Episode/Return', episode_reward, total_episodes)
                 writer.add_scalar('Episode/Length', episode_len, total_episodes)
                 total_episodes += 1
-                
-                # Update progress bar
-                progress_bar.set_postfix({
-                    'return': f'{episode_reward:.1f}',
-                    'episodes': total_episodes,
-                    'best': f'{BEST_SO_FAR:.1f}'
-                })
+
+            # Update progress bar with aggregated stats (outside the loop)
+            mean_return = cumulative_reward[env_idx].mean().item()
+            progress_bar.set_postfix({
+                'return': f'{mean_return:.1f}',
+                'episodes': total_episodes,
+                'best': f'{BEST_SO_FAR:.1f}'
+            })
             
             avg_return.append(torch.mean(cumulative_reward[env_idx,:].cpu()))
             best_ending = avg_return[-1] 
@@ -195,7 +197,8 @@ def main():
                 writer.add_scalar('Episode/Best_Avg_Return', BEST_SO_FAR, total_episodes)
                 if args.save_method == 'best':
                     save_model(agent.policy, "policy", save_dir, obs_dim=env.single_observation_space.shape[0])
-                    save_model(agent.obs_preprocessor, "obs_preprocessor", save_dir, obs_dim=env.single_observation_space.shape[0])
+                    if agent.preprocess_inputs:
+                        save_model(agent.obs_preprocessor, "obs_preprocessor", save_dir, obs_dim=env.single_observation_space.shape[0])
                     
 
             current_returns = cumulative_reward[env_idx].cpu().numpy().flatten()
@@ -220,7 +223,8 @@ def main():
     # Save final model if using 'last' save method
     if args.save_method == 'last':
         save_model(agent.policy, "policy", save_dir, obs_dim=env.single_observation_space.shape[0])
-        save_model(agent.obs_preprocessor, "obs_preprocessor", save_dir, obs_dim=env.single_observation_space.shape[0])
+        if agent.preprocess_inputs:
+            save_model(agent.obs_preprocessor, "obs_preprocessor", save_dir, obs_dim=env.single_observation_space.shape[0])
         print(f"[INFO]: Saved final model to {save_dir}")
     
     writer.close()
