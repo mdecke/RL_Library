@@ -27,6 +27,7 @@ parser.add_argument('--video', action='store_true', help='Record video of the tr
 parser.add_argument('--video_steps', type=int, default=500, help='Number of steps to record in video')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
 parser.add_argument('--plot', action='store_true', help='Plot the trajectories of the agent')
+parser.add_argument('--expert_guidance', type=str, choices=["mle","gmm","cnf"], default=None, help='Type of expert used during training (if any)')
 
 args = parser.parse_args()
 
@@ -49,14 +50,15 @@ def main():
     action_dim = env.single_action_space.shape[0] * general_cfg["agent"]["action_history"]
     scaling = general_cfg["agent"].get("preprocess_inputs", None)
     
-    egop_policy = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "EGOP_models", "scripted_policy.pt")
-    if os.path.exists(egop_policy):
-        print("[INFO]: Loading Expert-Guided Observation Preprocessor scaler")
-        policy_filepath = egop_policy
-        scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "EGOP_models", "scripted_obs_preprocessor.pt")      
+    # Determine which policy to load based on whether expert guidance was used
+    if args.expert_guidance is not None:
+        policy_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "EGOP_models", "scripted_policy.pt")
+        scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "EGOP_models", "scripted_obs_preprocessor.pt")
+        print("[INFO]: Loading policy trained with expert guidance from EGOP_models")
     else:
         policy_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_policy.pt")
         scaler_filepath = os.path.join(args.path_to_saved_policy, args.task, args.algorithm, "RL_models", "scripted_obs_preprocessor.pt")
+        print("[INFO]: Loading policy trained without expert guidance from RL_models")
     
     policy = torch.jit.load(policy_filepath, map_location=args.device)
     policy.eval()
