@@ -167,7 +167,6 @@ def main():
         
         if (any(terminated) or any(truncated)):
             env_idx = np.array(np.where(terminated | truncated)).squeeze()
-            print(f"[DEBUG]: at least one environment terminated or truncated: {len(env_idx)}")
             if env_idx.ndim == 0:  # Handle single env case
                 env_idx = np.array([env_idx])
 
