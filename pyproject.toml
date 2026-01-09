@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Your Name", email = "mdecker@caltech.edu"}
 ]
 keywords = ["reinforcement learning", "deep learning", "TD3", "DDPG", "SAC", "pytorch", "gymnasium"]
 classifiers = [
@@ -53,7 +53,7 @@ dev = [
     "isort>=5.12.0",
 ]
 all = [
-    "fasttdn[video,dev]",
+    "RL_Library[video,dev]",
 ]
 
 [project.urls]
