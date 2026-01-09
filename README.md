@@ -8,15 +8,76 @@ A reinforcement learning library for continuous control tasks using PyTorch and 
 
 ## Installation
 
+### Prerequisites
+
+- Python 3.8 or higher (tested with Python 3.8-3.13)
+- pip (Python package manager)
+- git
+
+### Install from GitHub
+
 ```bash
-# Clone and install
-git clone <repository-url>
-cd RL_Library
-pip install -e .
+# Basic installation
+pip install git+https://github.com/mdecke/RL_Library.git
 
 # With video recording support
-pip install -e .[video]
+pip install "git+https://github.com/mdecke/RL_Library.git#egg=RL_Library[video]"
+
+# With development tools
+pip install "git+https://github.com/mdecke/RL_Library.git#egg=RL_Library[dev]"
+
+# With all optional dependencies
+pip install "git+https://github.com/mdecke/RL_Library.git#egg=RL_Library[all]"
 ```
+
+### Install for Development
+
+```bash
+# Clone the repository
+git clone https://github.com/mdecke/RL_Library.git
+cd RL_Library
+
+# Create virtual environment (recommended)
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install in editable mode
+pip install -e .
+
+# Or with optional dependencies
+pip install -e .[video]  # Video recording
+pip install -e .[dev]    # Development tools
+pip install -e .[all]    # Everything
+```
+
+### Verify Installation
+
+```bash
+python -c "import agents; import base_classes; print('Installation successful!')"
+```
+
+### Dependencies
+
+**Core (automatically installed):**
+- gymnasium>=0.29.0
+- torch>=2.0.0
+- numpy>=1.24.0
+- pandas>=2.0.0
+- tqdm>=4.65.0
+- pyyaml>=6.0
+- torchinfo>=1.8.0
+- skrl>=1.0.0
+- matplotlib>=3.7.0
+- tensorboard>=2.13.0
+
+**Optional:**
+- `[video]`: moviepy, imageio, imageio-ffmpeg (requires system ffmpeg)
+- `[dev]`: pytest, black, flake8, isort
+
+**Note:** For video recording, install ffmpeg:
+- macOS: `brew install ffmpeg`
+- Ubuntu: `sudo apt-get install ffmpeg`
+- Windows: Download from https://ffmpeg.org/download.html
 
 ## Quick Start
 
